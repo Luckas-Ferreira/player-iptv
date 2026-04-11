@@ -1235,11 +1235,11 @@ input, select { font-family: inherit; }
     rgba(0,0,0,0) 62%,
     rgba(0,0,0,0.82) 100%
   );
-  opacity: 1;
-  transition: opacity 0.35s ease;
   z-index: 5;
 }
-.player-overlay.hidden-controls { opacity: 0; pointer-events: none; }
+.player-overlay.hidden-controls { 
+  display: none !important;
+}
 
 .player-top-bar {
   display: flex;

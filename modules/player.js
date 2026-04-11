@@ -424,7 +424,7 @@ var Player = (function () {
     _hideLoading();
     _hideError();
     var btn = document.getElementById('player-play-pause');
-    if (btn) btn.textContent = '⏸';
+    if (btn) btn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
     _showOverlay();
   }
 
@@ -435,13 +435,13 @@ var Player = (function () {
   function _onPaused() {
     _isPlaying = false;
     var btn = document.getElementById('player-play-pause');
-    if (btn) btn.textContent = '▶';
+    if (btn) btn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
     _showOverlay();
   }
 
   function _onEnd() {
     var btn = document.getElementById('player-play-pause');
-    if (btn) btn.textContent = '↩';
+    if (btn) btn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>';
     _showOverlay();
   }
 
