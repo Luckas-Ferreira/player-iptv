@@ -99,11 +99,24 @@ var Player = (function () {
   function _startLive() {
     if (!_currentItem) return;
 
-    /* Sempre usa a URL .ts para mpegts.js — conexão contínua, sem tokens de segmento */
     var tsUrl  = _getLiveUrl('ts');
     var m3u8Url = _getLiveUrl('m3u8');
 
-    _attempt = 0;
+    var ua = navigator.userAgent.toLowerCase();
+    var isTV = ua.indexOf('smart-tv') !== -1 || ua.indexOf('smarttv') !== -1 || 
+               ua.indexOf('tizen') !== -1 || ua.indexOf('webos') !== -1 || 
+               ua.indexOf('viera') !== -1 || ua.indexOf('panasonic') !== -1 || 
+               ua.indexOf('netcast') !== -1 || ua.indexOf('tv') !== -1;
+
+    var canNativeHls = _video && (_video.canPlayType('application/vnd.apple.mpegurl') || _video.canPlayType('application/x-mpegurl'));
+
+    if (isTV && canNativeHls) {
+      /* Pula mpegts.js e hls.js: o hardware da tv processa melhor M3U8 Nativo. */
+      _attempt = 2;
+    } else {
+      _attempt = 0;
+    }
+
     _tryLive(tsUrl, m3u8Url);
   }
 

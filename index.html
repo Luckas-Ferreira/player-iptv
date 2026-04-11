@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <meta name="description" content="Player IPTV Web - Assista TV ao vivo, filmes e séries diretamente no navegador da sua Smart TV">
+  <meta name="description"
+    content="Player IPTV Web - Assista TV ao vivo, filmes e séries diretamente no navegador da sua Smart TV">
   <title>StreamTV – Player IPTV</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
   <!-- ===================== TELA DE LOGIN ===================== -->
@@ -26,7 +29,8 @@
 
       <!-- Tabs de tipo de conexão -->
       <div class="login-tabs" role="tablist">
-        <button id="tab-xtream" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-xtream" tabindex="0">
+        <button id="tab-xtream" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-xtream"
+          tabindex="0">
           Xtream Codes
         </button>
         <button id="tab-m3u" class="tab-btn" role="tab" aria-selected="false" aria-controls="form-m3u" tabindex="0">
@@ -54,7 +58,8 @@
       <div id="form-m3u" class="login-form hidden" role="tabpanel" aria-labelledby="tab-m3u">
         <div class="form-group">
           <label for="m3u-url">URL da Playlist M3U</label>
-          <input id="m3u-url" type="url" placeholder="http://servidor.com/lista.m3u" autocomplete="off" spellcheck="false">
+          <input id="m3u-url" type="url" placeholder="http://servidor.com/lista.m3u" autocomplete="off"
+            spellcheck="false">
         </div>
       </div>
 
@@ -79,46 +84,81 @@
         <span class="sidebar-app-name">StreamTV</span>
       </div>
       <ul class="sidebar-menu" role="menubar">
-        <li class="menu-item" data-tab="search" role="menuitem" tabindex="0" aria-label="Busca">
-          <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </span>
-          <span class="menu-label">Busca</span>
-        </li>
         <li class="menu-item active" data-tab="live" role="menuitem" tabindex="0" aria-label="TV ao Vivo">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polyline points="17 2 12 7 7 2"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="15" rx="2" />
+              <polyline points="17 2 12 7 7 2" />
+            </svg>
           </span>
           <span class="menu-label">TV ao Vivo</span>
         </li>
         <li class="menu-item" data-tab="movies" role="menuitem" tabindex="0" aria-label="Filmes">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" />
+              <line x1="7" y1="2" x2="7" y2="22" />
+              <line x1="17" y1="2" x2="17" y2="22" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <line x1="2" y1="7" x2="7" y2="7" />
+              <line x1="2" y1="17" x2="7" y2="17" />
+              <line x1="17" y1="17" x2="22" y2="17" />
+              <line x1="17" y1="7" x2="22" y2="7" />
+            </svg>
           </span>
           <span class="menu-label">Filmes</span>
         </li>
         <li class="menu-item" data-tab="series" role="menuitem" tabindex="0" aria-label="Séries">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7" />
+              <rect x="1" y="5" width="15" height="14" rx="2" />
+            </svg>
           </span>
           <span class="menu-label">Séries</span>
         </li>
+        <li class="menu-item" data-tab="search" role="menuitem" tabindex="0" aria-label="Busca">
+          <span class="menu-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <span class="menu-label">Busca</span>
+        </li>
         <li class="menu-item" data-tab="favorites" role="menuitem" tabindex="0" aria-label="Favoritos">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
           </span>
           <span class="menu-label">Favoritos</span>
         </li>
         <li class="menu-item" data-tab="recents" role="menuitem" tabindex="0" aria-label="Recentes">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
           </span>
           <span class="menu-label">Recentes</span>
         </li>
 
         <li class="menu-item" data-tab="settings" role="menuitem" tabindex="0" aria-label="Configurações">
           <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
           </span>
           <span class="menu-label">Configurações</span>
         </li>
@@ -139,10 +179,11 @@
       <header class="content-header">
         <h2 id="content-title" class="content-title">TV ao Vivo</h2>
         <div class="header-actions">
-          <div id="category-filter" class="category-filter" role="group" aria-label="Filtrar por categoria"></div>
           <div class="header-search-inline">
-            <input id="inline-search" type="search" placeholder="Buscar..." class="inline-search-input" aria-label="Busca rápida">
+            <input id="inline-search" type="search" placeholder="Buscar..." class="inline-search-input"
+              aria-label="Busca rápida">
           </div>
+          <div id="category-filter" class="category-filter" role="group" aria-label="Filtrar por categoria"></div>
         </div>
       </header>
 
@@ -166,9 +207,14 @@
         <div class="search-container">
           <div class="search-input-wrapper">
             <span class="search-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </span>
-            <input id="search-input" type="search" placeholder="Digite para buscar canais, filmes, séries..." class="search-input" aria-label="Campo de busca" autocomplete="off">
+            <input id="search-input" type="search" placeholder="Digite para buscar canais, filmes, séries..."
+              class="search-input" aria-label="Campo de busca" autocomplete="off">
           </div>
           <div id="search-results" class="search-results" role="list" aria-label="Resultados da busca"></div>
           <div id="search-empty" class="search-empty hidden">
@@ -282,7 +328,10 @@
     <div id="player-overlay" class="player-overlay" aria-hidden="true">
       <div class="player-top-bar">
         <button id="player-back" class="player-btn-back" tabindex="0" aria-label="Voltar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
           Voltar
         </button>
         <div class="player-channel-info">
@@ -306,7 +355,6 @@
         <div class="player-controls">
           <button id="player-rewind" class="player-ctrl-btn" tabindex="0" aria-label="Retroceder 10s">« 10s</button>
           <button id="player-forward" class="player-ctrl-btn" tabindex="0" aria-label="Avançar 10s">10s »</button>
-          <button id="player-fullscreen" class="player-ctrl-btn" tabindex="0" aria-label="Tela cheia">Tela Cheia</button>
         </div>
       </div>
     </div>
@@ -324,8 +372,10 @@
     <!-- Barra do mini-player (visível apenas no modo split-screen) -->
     <div class="mini-player-bar" aria-hidden="true">
       <span id="mini-player-title" class="mini-player-title"></span>
-      <button id="mini-player-expand" class="mini-player-expand" tabindex="0" title="Tela cheia" aria-label="Expandir para tela cheia">⛶</button>
-      <button id="mini-player-close" class="mini-player-close" tabindex="0" title="Fechar player" aria-label="Fechar">✕</button>
+      <button id="mini-player-expand" class="mini-player-expand" tabindex="0" title="Tela cheia"
+        aria-label="Expandir para tela cheia">⛶</button>
+      <button id="mini-player-close" class="mini-player-close" tabindex="0" title="Fechar player"
+        aria-label="Fechar">✕</button>
     </div>
   </div>
 
@@ -342,4 +392,5 @@
   <script src="modules/navigation.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

@@ -32,6 +32,19 @@ var Navigation = (function () {
 
   function _handleKey(e) {
     var code = e.keyCode || e.which;
+    var focused = document.activeElement;
+    var isInput = focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA');
+
+    if (isInput) {
+      if (code === 8) return; /* Permite uso do Backspace para apagar texto na TV */
+      if (code === 37 || code === 39) return; /* Permite navegar pelo texto com left/right */
+      if (code === 13 || code === 195) {
+        /* OK/Enter retira o foco para abaixar o teclado na TV */
+        e.preventDefault();
+        focused.blur();
+        return;
+      }
+    }
 
     // --- Voltar ---
     if (_matchKey(code, KEYS.BACK)) {
@@ -57,7 +70,6 @@ var Navigation = (function () {
 
     // --- OK / Enter: já tratado nativamente pelo browser, mas garante foco visível ---
     if (_matchKey(code, KEYS.OK)) {
-      var focused = document.activeElement;
       if (focused && (focused.tagName === 'DIV' || focused.tagName === 'LI')) {
         e.preventDefault();
         focused.click();
@@ -88,7 +100,7 @@ var Navigation = (function () {
     }
     /* Category Filter Constraints */
     if (inCategory) {
-      if (direction === 'left') return ['.category-filter', '.sidebar'];
+      if (direction === 'left') return ['.category-filter', '.header-search-inline', '.sidebar'];
       if (direction === 'right') return ['.category-filter']; /* Proíbe cair pra grade ao ir pra direita */
       if (direction === 'down') return ['.content-grid', '.search-results', '.content-empty'];
       if (direction === 'up') return []; /* Topo da tela */
@@ -145,6 +157,17 @@ var Navigation = (function () {
         bestScore = score;
         bestEl = el;
       }
+    }
+
+    /* Fallback explícito: se tentou ir para a Direita da Grade, bateu no final, 
+       mas o player está aberto ao lado e geometry score falhou no motor da TV, força foco ao botão do player */
+    if (!bestEl && direction === 'right') {
+       if (focused.closest('.content-grid') || focused.closest('.search-results')) {
+          var expandBtn = document.getElementById('mini-player-expand');
+          if (expandBtn && _isVisible(expandBtn)) {
+             bestEl = expandBtn;
+          }
+       }
     }
 
     if (bestEl) {
@@ -223,7 +246,7 @@ var Navigation = (function () {
     var rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     var style = window.getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0;
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
 
   function _scrollIntoView(el) {

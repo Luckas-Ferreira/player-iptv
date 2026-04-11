@@ -312,7 +312,25 @@ var App = (function () {
     _loadCurrentTab();
   }
 
+  var _globalSearchWarmed = false;
+  function _warmupGlobalSearch() {
+    if (_globalSearchWarmed) return;
+    _globalSearchWarmed = true;
+    if (_state.mode === 'xtream') {
+      Promise.all([
+        API.getLiveStreams(''),
+        API.getVodStreams(''),
+        API.getSeriesList('')
+      ]).then(function(res) {
+        Search.setGlobalData((res[0]||[]).concat(res[1]||[]).concat(res[2]||[]));
+      }).catch(function(){});
+    } else if (_state.mode === 'm3u') {
+      API.loadM3U().then(function(res) { Search.setGlobalData(res); }).catch(function(){});
+    }
+  }
+
   function _loadCurrentTab() {
+    _warmupGlobalSearch();
     var tab = _state.activeTab;
 
     if (tab === 'favorites') {
@@ -339,6 +357,9 @@ var App = (function () {
     var data = _state.demoData;
     if (!data) { Renderer.setLoading(false); Renderer.setEmpty(true); return; }
 
+    var allDemo = data.liveStreams.concat(data.vodStreams).concat(data.seriesList);
+    Search.setGlobalData(allDemo);
+
     if (tab === 'live') {
       _renderCategories(data.liveCategories, function (catId) {
         var items = catId
@@ -347,7 +368,7 @@ var App = (function () {
         _renderGrid(items);
       });
       _renderGrid(data.liveStreams);
-      Search.setData(data.liveStreams);
+      Search.setTabData(data.liveStreams);
     } else if (tab === 'movies') {
       _renderCategories(data.vodCategories, function (catId) {
         var items = catId
@@ -356,7 +377,7 @@ var App = (function () {
         _renderGrid(items);
       });
       _renderGrid(data.vodStreams);
-      Search.appendData(data.vodStreams);
+      Search.setTabData(data.vodStreams);
     } else if (tab === 'series') {
       _renderCategories(data.seriesCategories, function (catId) {
         var items = catId
@@ -365,7 +386,7 @@ var App = (function () {
         _renderGrid(items);
       });
       _renderGrid(data.seriesList);
-      Search.appendData(data.seriesList);
+      Search.setTabData(data.seriesList);
     }
     Renderer.setLoading(false);
   }
@@ -392,6 +413,11 @@ var App = (function () {
     getCats().then(function (cats) {
       _renderCategoriesLazy(cats, getStreams);
 
+      // Carrega TUDO desta aba em background para permitir busca inline completa na aba
+      getStreams('').then(function(allTab) {
+        Search.setTabData(allTab);
+      }).catch(function(){});
+
       if (cats && cats.length > 0) {
         var firstCat = cats[0];
         _state.activeCategory = firstCat.category_id;
@@ -399,7 +425,6 @@ var App = (function () {
         getStreams(firstCat.category_id).then(function (items) {
           if (token !== _state.loadToken) return; /* descarta resposta antiga */
           _renderGrid(items);
-          Search.setData(items);
           Renderer.setLoading(false);
         }).catch(_handleLoadError);
       } else {
@@ -444,7 +469,6 @@ var App = (function () {
         getStreams(cat.category_id).then(function (items) {
           if (token !== _state.loadToken) return; /* resposta de categoria antiga — ignora */
           _renderGrid(items);
-          Search.setData(items);
           Renderer.setLoading(false);
         }).catch(function (e) {
           if (token !== _state.loadToken) return;
@@ -492,11 +516,10 @@ var App = (function () {
           return (i.category_name || i.group) === cats[0].category_id;
         });
         _renderGrid(firstItems);
-        Search.setData(allItems);
       } else {
         _renderGrid(filtered);
-        Search.setData(allItems);
       }
+      Search.setTabData(filtered);
       Renderer.setLoading(false);
     }).catch(_handleLoadError);
   }
@@ -898,7 +921,8 @@ var App = (function () {
     if (clearAll) clearAll.addEventListener('click', function () {
       Storage.clearAll();
       API.clearCache();
-      Search.clearData();
+      Search.setTabData([]);
+      Search.setGlobalData([]);
       Renderer.showToast('Todos os dados removidos', 'info');
     });
   }
@@ -1089,7 +1113,8 @@ var App = (function () {
     Player.stop();
     Auth.logout();
     API.clearCache();
-    Search.clearData();
+    Search.setTabData([]);
+    Search.setGlobalData([]);
     Navigation.clearHistory();
     Navigation.pushHistory('login');
     _showScreen('login');
