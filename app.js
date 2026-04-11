@@ -10,12 +10,15 @@ var App = (function () {
      Estado global
   ══════════════════════════════════════ */
   var _state = {
-    mode:           'demo',      // 'xtream' | 'm3u' | 'demo'
-    activeTab:      'live',      // tab atual
-    activeCategory: '',          // categoria selecionada
-    allItems:       [],          // dataset completo (para busca)
+    mode:           'xtream',
+    activeTab:      'live',
+    activeCategory: '',
+    allItems:       [],
     demoData:       null,
-    uiScale:        100
+    uiScale:        100,
+    miniActive:     false,   // split-screen ativo?
+    miniItem:       null,    // item tocando no preview
+    loadToken:      0        // token anti-race-condition
   };
 
   /* ══════════════════════════════════════
@@ -250,8 +253,14 @@ var App = (function () {
   }
 
   function _activateTab(tabName) {
+    /* Se o split-screen estiver ativo e o usuário sair da aba de TV ao Vivo, fecha o preview */
+    if (_state.miniActive && tabName !== 'live') {
+      _deactivateMiniPlayer(true);
+    }
+
     _state.activeTab = tabName;
     _state.activeCategory = '';
+
 
     // Atualiza menu ativo
     var menuItems = document.querySelectorAll('.menu-item');
@@ -381,15 +390,14 @@ var App = (function () {
     }
 
     getCats().then(function (cats) {
-      // Renderiza botões de categoria.
-      // O callback é chamado quando usuário clica em uma categoria
       _renderCategoriesLazy(cats, getStreams);
 
-      // Passo 2: auto-seleciona a primeira categoria (sem carregar tudo)
       if (cats && cats.length > 0) {
         var firstCat = cats[0];
         _state.activeCategory = firstCat.category_id;
+        var token = ++_state.loadToken;
         getStreams(firstCat.category_id).then(function (items) {
+          if (token !== _state.loadToken) return; /* descarta resposta antiga */
           _renderGrid(items);
           Search.setData(items);
           Renderer.setLoading(false);
@@ -423,22 +431,25 @@ var App = (function () {
       btn.tabIndex = 0;
 
       btn.addEventListener('click', function () {
-        // Evita recarregar a mesma categoria
         if (_state.activeCategory === cat.category_id) return;
         _state.activeCategory = cat.category_id;
 
-        // Atualiza foco visual dos botões
         var btns = container.querySelectorAll('.cat-btn');
         for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
         btn.classList.add('active');
 
-        // Carrega os streams dessa categoria
+        /* Incrementa token: qualquer resposta com token antigo será descartada */
+        var token = ++_state.loadToken;
         Renderer.setLoading(true);
         getStreams(cat.category_id).then(function (items) {
+          if (token !== _state.loadToken) return; /* resposta de categoria antiga — ignora */
           _renderGrid(items);
           Search.setData(items);
           Renderer.setLoading(false);
-        }).catch(_handleLoadError);
+        }).catch(function (e) {
+          if (token !== _state.loadToken) return;
+          _handleLoadError(e);
+        });
       });
 
       btn.addEventListener('keydown', function (e) {
@@ -571,6 +582,12 @@ var App = (function () {
   function _playItem(item) {
     var type = item._type || 'live';
 
+    // Se mini-player estiver ativo e o usuário clicar em canal diferente,
+    // fecha o mini antes de abrir o full-screen
+    if (_state.miniActive) {
+      _deactivateMiniPlayer(false /* não para o player agora, _openPlayer vai trocar */);
+    }
+
     if (type === 'live') {
       _openPlayer(item);
     } else if (type === 'movie') {
@@ -581,10 +598,12 @@ var App = (function () {
   }
 
   function _openPlayer(item) {
-    _showScreen('player');
+    // Garante que o mini-player é desativado visualmente antes de ir full-screen
+    _deactivateMiniPlayer(false);
     Navigation.pushHistory('player');
-    Navigation.setScreen('player');
+    _showScreen('player');  /* _showScreen já chama Navigation.setScreen internamente */
     Player.play(item);
+    _state.miniItem = item;
     Navigation.focusFirst('player');
   }
 
@@ -934,22 +953,135 @@ var App = (function () {
     Navigation.setScreen(name);
   }
 
-  function goBack() {
-    var current = Navigation.getCurrentHistory();
+  /* ══════════════════════════════════════
+     CHANNEL PICKER (split-screen)
+     Metade esquerda: lista de canais
+     Metade direita: preview estático do canal atual
+  ══════════════════════════════════════ */
 
-    if (current === 'player') {
+  function _activateMiniPlayer() {
+    var playerScreen = document.getElementById('screen-player');
+    var mainScreen   = document.getElementById('screen-main');
+    if (!playerScreen || !mainScreen) return;
+
+    _state.miniActive = true;
+
+    /* Tela principal ocupa a metade esquerda */
+    mainScreen.classList.remove('hidden');
+    mainScreen.classList.add('active', 'channel-picker-main');
+
+    /* Player vira preview estático na metade direita */
+    playerScreen.classList.remove('hidden');
+    playerScreen.classList.add('channel-picker-preview');
+
+    /* Nome do canal no hint do preview */
+    var previewTitle = document.getElementById('mini-player-title');
+    if (previewTitle && _state.miniItem) previewTitle.textContent = _state.miniItem.name || '';
+
+    /* Botão expandir → full-screen */
+    var expandBtn = document.getElementById('mini-player-expand');
+    if (expandBtn) expandBtn.onclick = _expandMiniPlayer;
+
+    /* Botão fechar → para o stream */
+    var closeBtn = document.getElementById('mini-player-close');
+    if (closeBtn) closeBtn.onclick = function (e) { e.stopPropagation(); _deactivateMiniPlayer(true); };
+
+    Navigation.setScreen('main');
+    Navigation.focusFirst('main');
+
+    playerScreen.addEventListener('click', _onMiniPlayerClick);
+  }
+
+  function _onMiniPlayerClick(e) {
+    /* Botões com handlers próprios — não propaga */
+    if (e.target && (e.target.id === 'mini-player-close' || e.target.id === 'mini-player-expand')) {
+      return; /* onclick já definido acima */
+    }
+    if (e.target && (e.target.id === 'player-back' || e.target.id === 'player-back-from-error')) {
+      e.stopPropagation();
+      return;
+    }
+    /* Clique em qualquer área do preview → expande para full-screen */
+    _expandMiniPlayer();
+  }
+
+  function _expandMiniPlayer() {
+    if (!_state.miniActive) return;
+    var playerScreen = document.getElementById('screen-player');
+    var mainScreen   = document.getElementById('screen-main');
+
+    playerScreen.classList.remove('channel-picker-preview');
+    playerScreen.removeEventListener('click', _onMiniPlayerClick);
+    if (mainScreen) {
+      mainScreen.classList.remove('channel-picker-main');
+      mainScreen.classList.add('hidden');
+      mainScreen.classList.remove('active');
+    }
+
+    _state.miniActive = false;
+    Navigation.pushHistory('player');
+    Navigation.setScreen('player');
+    Navigation.focusFirst('player');
+  }
+
+  function _deactivateMiniPlayer(stopPlayer) {
+    if (!_state.miniActive) return;
+    _state.miniActive = false;
+    _state.miniItem   = null;
+
+    var playerScreen = document.getElementById('screen-player');
+    var mainScreen   = document.getElementById('screen-main');
+    if (playerScreen) {
+      playerScreen.classList.remove('channel-picker-preview');
+      playerScreen.removeEventListener('click', _onMiniPlayerClick);
+      if (stopPlayer) {
+        playerScreen.classList.add('hidden');
+        playerScreen.classList.remove('active');
+        Player.stop();
+      }
+    }
+    if (mainScreen) mainScreen.classList.remove('channel-picker-main');
+  }
+
+  function goBack() {
+    /* Usa _currentScreen (Navigation.setScreen) que é sempre atualizado,
+       ao invés do history que pode ficar dessincronizado. */
+    var current = Navigation.getCurrentHistory();
+    var screen  = document.querySelector('.screen.active');
+    var screenId = screen ? screen.id.replace('screen-', '') : current;
+
+    /* ── Player full-screen ────────────────────────────────── */
+    if (screenId === 'player' && !_state.miniActive) {
+      var item = _state.miniItem;
+
+      // Canal ao vivo: não para o player, ativa mini-player flutuante
+      if (item && item._type === 'live') {
+        Navigation.popHistory();
+        _activateMiniPlayer();
+        return;
+      }
+
+      // VOD / Séries: para e volta
       Player.stop();
-      var prev = Navigation.popHistory();
-      _showScreen(prev || 'main');
-      Navigation.focusFirst(prev || 'main');
-    } else if (current === 'detail') {
+      _state.miniItem = null;
       Navigation.popHistory();
       _showScreen('main');
-      Navigation.setScreen('main');
       Navigation.focusFirst('main');
-    } else if (current === 'main') {
-      // Na tela principal, "voltar" navega para Login apenas se confirmar
-      // (não fecha a sessão automaticamente)
+      return;
+    }
+
+    /* ── Tela de detalhe ───────────────────────────────────── */
+    if (screenId === 'detail') {
+      Navigation.popHistory();
+      _showScreen('main');
+      Navigation.focusFirst('main');
+      return;
+    }
+
+    /* ── Tela principal (main) ─────────────────────────────── */
+    if (_state.miniActive) {
+      // Mini-player ativo: back fecha o mini
+      _deactivateMiniPlayer(true);
     }
   }
 

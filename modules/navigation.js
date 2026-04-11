@@ -109,8 +109,10 @@ var Navigation = (function () {
   }
 
   /**
-   * Calcula score de proximidade direcional
-   * Retorna null se o elemento não está na direção correta
+   * Calcula score de proximidade direcional via comparação centro-a-centro.
+   * O elemento candidato deve estar estritamente na direção indicada
+   * (centro do candidato > centro do atual para right/down, etc).
+   * Score = distância primária + distância lateral * 0.5 (favorece alinhamento)
    */
   function _calcDirectionScore(from, to, direction) {
     var fromCX = from.left + from.width / 2;
@@ -121,39 +123,53 @@ var Navigation = (function () {
     var dx = toCX - fromCX;
     var dy = toCY - fromCY;
 
-    var threshold = 20; // px de tolerância
+    /* Tolerância: permite até 8px de desalinhamento para não bloquear
+       movimentos em grids onde linhas não são perfeitamente alinhadas. */
+    var tol = 8;
 
     switch (direction) {
       case 'up':
-        if (to.bottom > from.top + threshold) return null;
-        return Math.abs(dy) + Math.abs(dx) * 0.3;
+        if (dy > -tol) return null;          /* deve estar acima */
+        return Math.abs(dy) + Math.abs(dx) * 0.5;
       case 'down':
-        if (to.top < from.bottom - threshold) return null;
-        return Math.abs(dy) + Math.abs(dx) * 0.3;
+        if (dy < tol) return null;           /* deve estar abaixo */
+        return Math.abs(dy) + Math.abs(dx) * 0.5;
       case 'left':
-        if (to.right > from.left + threshold) return null;
-        return Math.abs(dx) + Math.abs(dy) * 0.3;
+        if (dx > -tol) return null;          /* deve estar à esquerda */
+        return Math.abs(dx) + Math.abs(dy) * 0.5;
       case 'right':
-        if (to.left < from.right - threshold) return null;
-        return Math.abs(dx) + Math.abs(dy) * 0.3;
+        if (dx < tol) return null;           /* deve estar à direita */
+        return Math.abs(dx) + Math.abs(dy) * 0.5;
     }
     return null;
   }
 
   /**
-   * Retorna todos os elementos focalizáveis na tela ativa
+   * Retorna todos os elementos focalizáveis na tela ativa.
+   * No modo split-screen (channel-picker), também inclui elementos
+   * do painel de preview do player (lado direito).
    */
   function _getFocusables() {
-    var screenId = 'screen-' + _currentScreen;
-    var screen = document.getElementById(screenId);
-    if (!screen) screen = document.body;
-
-    var all = screen.querySelectorAll(_focusableSelector);
     var visible = [];
-    for (var i = 0; i < all.length; i++) {
-      var el = all[i];
-      if (_isVisible(el)) visible.push(el);
+
+    function _collect(container) {
+      if (!container) return;
+      var all = container.querySelectorAll(_focusableSelector);
+      for (var i = 0; i < all.length; i++) {
+        if (_isVisible(all[i])) visible.push(all[i]);
+      }
     }
+
+    /* Tela principal atual */
+    var mainScreen = document.getElementById('screen-' + _currentScreen) || document.body;
+    _collect(mainScreen);
+
+    /* Split-screen: inclui os botões do preview do player (fechar, expandir) */
+    var previewScreen = document.querySelector('#screen-player.channel-picker-preview');
+    if (previewScreen) {
+      _collect(previewScreen);
+    }
+
     return visible;
   }
 
@@ -162,7 +178,7 @@ var Navigation = (function () {
     var rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     var style = window.getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    return style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0;
   }
 
   function _scrollIntoView(el) {
