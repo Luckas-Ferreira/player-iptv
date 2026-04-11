@@ -71,16 +71,68 @@ var Renderer = (function () {
       if (e.target === favBtn || favBtn.contains(e.target)) return;
       if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
     });
+
+    /* Long-press no card (OK/Enter por 3s) → favoritar */
+    var _lpTimer  = null;
+    var _lpStart  = 0;
+    var _lpRaf    = null;
+
+    function _cancelLP() {
+      clearTimeout(_lpTimer);
+      cancelAnimationFrame(_lpRaf);
+      _lpTimer = null;
+      card.classList.remove('lp-active');
+      card.style.removeProperty('--lp-pct');
+    }
+
+    function _tickLP() {
+      if (!_lpTimer) return;
+      var pct = Math.min(100, ((Date.now() - _lpStart) / 3000) * 100);
+      card.style.setProperty('--lp-pct', pct + '%');
+      if (pct < 100) _lpRaf = requestAnimationFrame(_tickLP);
+    }
+
     card.addEventListener('keydown', function (e) {
-      if (e.keyCode === 13 || e.keyCode === 32) {
+      /* Enter / Space / OK */
+      if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
         e.preventDefault();
-        if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
+        /* Se já existe timer (tecla pressionada e mantida), aguarda */
+        if (_lpTimer) return;
+        _lpStart = Date.now();
+        card.classList.add('lp-active');
+        _lpRaf = requestAnimationFrame(_tickLP);
+        _lpTimer = setTimeout(function () {
+          _lpTimer = null;
+          _cancelLP();
+          /* Favoritar! */
+          var nowFav = Storage.toggleFavorite(item);
+          favBtn.textContent = nowFav ? '\u2605' : '\u2606';
+          favBtn.className = 'card-fav' + (nowFav ? ' is-fav' : '');
+          if (callbacks && callbacks.onFavorite) callbacks.onFavorite(item, nowFav);
+          Renderer.showToast(
+            nowFav ? '\u2605 Adicionado aos favoritos' : '\u2606 Removido dos favoritos',
+            nowFav ? 'success' : 'info'
+          );
+        }, 3000);
       }
     });
+
+    card.addEventListener('keyup', function (e) {
+      if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
+        if (_lpTimer) {
+          /* Soltura antes de 3s → executa aão normal (play) */
+          _cancelLP();
+          if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
+        }
+      }
+    });
+
+    card.addEventListener('blur', _cancelLP);
+
     favBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       var nowFav = Storage.toggleFavorite(item);
-      favBtn.textContent = nowFav ? '★' : '☆';
+      favBtn.textContent = nowFav ? '\u2605' : '\u2606';
       favBtn.className = 'card-fav' + (nowFav ? ' is-fav' : '');
       if (callbacks && callbacks.onFavorite) callbacks.onFavorite(item, nowFav);
     });
