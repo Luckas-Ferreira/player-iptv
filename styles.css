@@ -625,14 +625,16 @@ input, select { font-family: inherit; }
 
 /* ─── Grade de Cards ─────────────────────────────── */
 .content-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   padding: 6px 28px 48px;
 }
 
 /* ─── Card ─────────────────────────────────────── */
 .card {
+  width: var(--card-min);
+  flex-shrink: 0;
   background: var(--bg-surface);
   border-radius: var(--radius);
   border: 1px solid var(--border-subtle);
@@ -640,7 +642,22 @@ input, select { font-family: inherit; }
   cursor: pointer;
   position: relative;
   transition: transform 0.2s ease, border-color 0.18s ease, box-shadow 0.2s ease;
-  /* Sem box-shadow padrão — só no hover */
+  /* Fallback margem para WebKit muuuito antigo que ignora flex gap */
+  margin-right: 14px;
+  margin-bottom: 14px;
+}
+
+@supports (display: grid) {
+  .content-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    gap: 14px;
+  }
+  .card {
+    width: auto;
+    margin-right: 0;
+    margin-bottom: 0;
+  }
 }
 
 .card:hover {
@@ -1131,12 +1148,14 @@ input, select { font-family: inherit; }
 }
 
 .episodes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
 .episode-card {
+  width: 260px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);
@@ -1145,7 +1164,24 @@ input, select { font-family: inherit; }
   overflow: hidden;
   cursor: pointer;
   transition: border-color var(--trans), background var(--trans);
+  /* Fallback margem para gap */
+  margin-right: 12px;
+  margin-bottom: 12px;
 }
+
+@supports (display: grid) {
+  .episodes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .episode-card {
+    width: auto;
+    margin-right: 0;
+    margin-bottom: 0;
+  }
+}
+
 .episode-card:hover, .episode-card:focus {
   border-color: var(--border-low);
   background: var(--bg-raised);
