@@ -754,12 +754,29 @@ input, select { font-family: inherit; }
   opacity: 0;
   transition: opacity var(--trans), background var(--trans);
   backdrop-filter: blur(4px);
+  pointer-events: none; /* Deixa o clique sempre passar pro card ou usar o long-press */
 }
 .card:hover .card-fav,
 .card:focus .card-fav,
 .card-fav.is-fav { opacity: 1; }
 .card-fav.is-fav { color: var(--gold); border-color: rgba(245,197,24,0.4); background: rgba(0,0,0,0.7); }
 .card-fav:focus  { outline: none; box-shadow: var(--shadow-focus); opacity: 1; }
+
+/* Barra de progresso do Long-Press (favoritar) */
+.card::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 4px;
+  background: var(--gold);
+  width: var(--lp-pct, 0%);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.card.lp-active::before {
+  opacity: 1;
+}
 
 /* Badge LIVE */
 .card-live-badge {

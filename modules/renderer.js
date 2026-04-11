@@ -49,12 +49,10 @@ var Renderer = (function () {
       card.appendChild(liveBadge);
     }
 
-    // Botão de favorito
-    var favBtn = _el('button', {
+    // Indicador visual de favorito (antigo botão, agora apenas visual)
+    var favBtn = _el('div', {
       className: 'card-fav' + (isFav ? ' is-fav' : ''),
-      textContent: isFav ? '★' : '☆',
-      tabIndex: -1,
-      'aria-label': isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'
+      textContent: isFav ? '\u2605' : '\u2606'
     });
     card.appendChild(favBtn);
 
@@ -67,15 +65,18 @@ var Renderer = (function () {
     card.appendChild(body);
 
     // Eventos
+    /* Long-press no card (OK/Enter por 3s) → favoritar */
+    var _lpTimer    = null;
+    var _lpStart    = 0;
+    var _lpRaf      = null;
+    var _ignorePlay = false; /* Bloqueia o clique/keyup pós-favoritar */
+    var _isKeyDown  = false; /* Trava física da tecla */
+
     card.addEventListener('click', function (e) {
       if (e.target === favBtn || favBtn.contains(e.target)) return;
+      if (_ignorePlay) return;
       if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
     });
-
-    /* Long-press no card (OK/Enter por 3s) → favoritar */
-    var _lpTimer  = null;
-    var _lpStart  = 0;
-    var _lpRaf    = null;
 
     function _cancelLP() {
       clearTimeout(_lpTimer);
@@ -96,14 +97,22 @@ var Renderer = (function () {
       /* Enter / Space / OK */
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
         e.preventDefault();
-        /* Se já existe timer (tecla pressionada e mantida), aguarda */
-        if (_lpTimer) return;
+        e.stopPropagation(); /* Evita que o Navigation.js intercepte */
+        
+        /* Se a tecla já está fisicamente abaixada, este é um evento de repetição (auto-repeat). Ignora. */
+        if (_isKeyDown) return;
+        _isKeyDown = true;
+        
+        _ignorePlay = false;
         _lpStart = Date.now();
         card.classList.add('lp-active');
         _lpRaf = requestAnimationFrame(_tickLP);
+        
         _lpTimer = setTimeout(function () {
           _lpTimer = null;
+          _ignorePlay = true; /* Impede o keyup de abrir o filme */
           _cancelLP();
+          
           /* Favoritar! */
           var nowFav = Storage.toggleFavorite(item);
           favBtn.textContent = nowFav ? '\u2605' : '\u2606';
@@ -113,21 +122,32 @@ var Renderer = (function () {
             nowFav ? '\u2605 Adicionado aos favoritos' : '\u2606 Removido dos favoritos',
             nowFav ? 'success' : 'info'
           );
+          
+          /* Libera a trava depois de 500ms para perdoar o atraso mecânico de soltar a tecla */
+          setTimeout(function() { _ignorePlay = false; }, 500);
         }, 3000);
       }
     });
 
     card.addEventListener('keyup', function (e) {
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
+        e.preventDefault();
+        _isKeyDown = false; /* Soltou a tecla */
+        
         if (_lpTimer) {
-          /* Soltura antes de 3s → executa aão normal (play) */
+          /* Soltou ANTES dos 3s -> Cancela o timer e executa o Play */
           _cancelLP();
-          if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
+          if (!_ignorePlay && callbacks && callbacks.onPlay) {
+             callbacks.onPlay(item);
+          }
         }
       }
     });
 
-    card.addEventListener('blur', _cancelLP);
+    card.addEventListener('blur', function() {
+      _isKeyDown = false;
+      _cancelLP();
+    });
 
     favBtn.addEventListener('click', function (e) {
       e.stopPropagation();

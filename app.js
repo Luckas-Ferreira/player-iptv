@@ -604,7 +604,7 @@ var App = (function () {
     _showScreen('player');  /* _showScreen já chama Navigation.setScreen internamente */
     Player.play(item);
     _state.miniItem = item;
-    Navigation.focusFirst('player');
+    /* Navigation.focusFirst('player'); REMOVIDO para não criar anel de foco no botão Voltar automaticamente */
   }
 
   /* ══════════════════════════════════════
@@ -1021,7 +1021,7 @@ var App = (function () {
     _state.miniActive = false;
     Navigation.pushHistory('player');
     Navigation.setScreen('player');
-    Navigation.focusFirst('player');
+    /* Navigation.focusFirst('player'); REMOVIDO para não ficar com o botão Voltar focado visualmente */
   }
 
   function _deactivateMiniPlayer(stopPlayer) {

@@ -74,6 +74,38 @@ var Navigation = (function () {
    * Move o foco na direção indicada
    * Algoritmo: encontra o elemento focalizável mais próximo na direção
    */
+  function _getConstraints(focused, direction) {
+    if (!focused) return null;
+    var inSidebar = focused.closest('.sidebar');
+    var inCategory = focused.closest('.category-filter');
+    var inGrid = focused.closest('.content-grid') || focused.closest('.search-results');
+    var inPreview = focused.closest('#screen-player.channel-picker-preview');
+
+    /* Sidebar Constraints */
+    if (inSidebar) {
+      if (direction === 'right') return ['.main-content', '#screen-player'];
+      if (direction === 'left') return []; /* Sidebar é o limite esquerdo */
+    }
+    /* Category Filter Constraints */
+    if (inCategory) {
+      if (direction === 'left') return ['.category-filter', '.sidebar'];
+      if (direction === 'right') return ['.category-filter']; /* Proíbe cair pra grade ao ir pra direita */
+      if (direction === 'down') return ['.content-grid', '.search-results', '.content-empty'];
+      if (direction === 'up') return []; /* Topo da tela */
+    }
+    /* Main Grid Constraints */
+    if (inGrid) {
+      if (direction === 'left') return ['.content-grid', '.search-results', '.sidebar'];
+      if (direction === 'right') return ['.content-grid', '.search-results', '#screen-player']; /* Acesso ao player */
+      if (direction === 'up') return ['.content-grid', '.search-results', '.category-filter', '.header-actions'];
+    }
+    /* Split-screen Preview Constraints */
+    if (inPreview) {
+      if (direction === 'left') return ['.content-grid', '.main-content'];
+    }
+    return null; /* Sem restrições rígidas para outros casos */
+  }
+
   function _moveFocus(direction) {
     var focused = document.activeElement;
     var focusables = _getFocusables();
@@ -85,6 +117,7 @@ var Navigation = (function () {
       return;
     }
 
+    var constraints = _getConstraints(focused, direction);
     var currentRect = focused.getBoundingClientRect();
     var bestEl = null;
     var bestScore = Infinity;
@@ -92,6 +125,18 @@ var Navigation = (function () {
     for (var i = 0; i < focusables.length; i++) {
       var el = focusables[i];
       if (el === focused) continue;
+
+      /* Se tiver regras de containeres, filtra candidatos */
+      if (constraints) {
+        var allowed = false;
+        for (var c = 0; c < constraints.length; c++) {
+          if (el.closest(constraints[c])) {
+            allowed = true;
+            break;
+          }
+        }
+        if (!allowed) continue;
+      }
 
       var rect = el.getBoundingClientRect();
       var score = _calcDirectionScore(currentRect, rect, direction);
