@@ -30,21 +30,54 @@ var App = (function () {
     _bindDetailEvents();
     _bindSettingsEvents();
 
-    // Tenta restaurar sessão salva
-    if (Storage.getAuth()) {
-      var creds = Storage.getAuth();
-      // Apenas mostra o login direto com os dados preenchidos, não auto-loga
-      if (creds && creds.type === 'xtream') {
+    // Tenta restaurar sessão salva — auto-login se houver credenciais
+    var saved = Storage.getAuth();
+    if (saved) {
+      if (saved.type === 'xtream') {
+        // Pré-preenche os campos (caso auto-login falhe, o usuário vê os dados)
         var srvEl = document.getElementById('xtream-server');
         var usrEl = document.getElementById('xtream-user');
         var pwdEl = document.getElementById('xtream-pass');
-        if (srvEl) srvEl.value = creds.server || '';
-        if (usrEl) usrEl.value = creds.username || '';
-        if (pwdEl) pwdEl.value = creds.password || '';
-      } else if (creds && creds.type === 'm3u') {
+        if (srvEl) srvEl.value = saved.server   || '';
+        if (usrEl) usrEl.value = saved.username || '';
+        if (pwdEl) pwdEl.value = saved.password || '';
+
+        // Tenta auto-login silencioso
+        _setLoginStatus('Reconectando...', 'loading');
+        Auth.loginXtream(saved.server, saved.username, saved.password).then(function (result) {
+          if (result.success) {
+            _state.mode = 'xtream';
+            _enterMain();
+          } else {
+            // Credenciais inválidas — mostra tela de login
+            Storage.clearAuth();
+            _setLoginStatus('Sessão expirada. Faça login novamente.', 'error');
+            Navigation.pushHistory('login');
+            Navigation.setScreen('login');
+            Navigation.focusFirst('login');
+          }
+        });
+        return; // não executa o focusFirst padrão abaixo
+
+      } else if (saved.type === 'm3u') {
         _switchLoginTab('m3u');
         var m3uEl = document.getElementById('m3u-url');
-        if (m3uEl) m3uEl.value = creds.url || '';
+        if (m3uEl) m3uEl.value = saved.url || '';
+
+        _setLoginStatus('Reconectando...', 'loading');
+        Auth.loginM3U(saved.url).then(function (result) {
+          if (result.success) {
+            _state.mode = 'm3u';
+            _enterMain();
+          } else {
+            Storage.clearAuth();
+            _setLoginStatus('Sessão expirada. Faça login novamente.', 'error');
+            Navigation.pushHistory('login');
+            Navigation.setScreen('login');
+            Navigation.focusFirst('login');
+          }
+        });
+        return;
       }
     }
 
@@ -119,6 +152,8 @@ var App = (function () {
       Auth.loginXtream(server, user, pass).then(function (result) {
         if (result.success) {
           _state.mode = 'xtream';
+          // Salva credenciais para auto-login futuro
+          Storage.saveAuth({ type: 'xtream', server: server, username: user, password: pass });
           _setLoginStatus('Conectado!', 'success');
           setTimeout(function () { _enterMain(); }, 800);
         } else {
@@ -136,6 +171,8 @@ var App = (function () {
       Auth.loginM3U(m3uUrl).then(function (result) {
         if (result.success) {
           _state.mode = 'm3u';
+          // Salva URL para auto-login futuro
+          Storage.saveAuth({ type: 'm3u', url: m3uUrl });
           _setLoginStatus('Lista carregada!', 'success');
           setTimeout(function () { _enterMain(); }, 800);
         } else {
@@ -195,7 +232,10 @@ var App = (function () {
       document.getElementById('settings-logout')
     ];
     logoutBtns.forEach(function (btn) {
-      if (btn) btn.addEventListener('click', _handleLogout);
+      if (btn) btn.addEventListener('click', function () {
+        Storage.clearAuth(); // Limpa sessão salva
+        _handleLogout();
+      });
     });
 
     // Busca inline
@@ -321,59 +361,95 @@ var App = (function () {
     Renderer.setLoading(false);
   }
 
-  /* ══════════════ Xtream Tab Loading ══════════════ */
+  /* ══════════════ Xtream Tab Loading (por categoria) ══════════════ */
   function _loadXtreamTab(tab) {
+    // Passo 1: busca apenas as categorias (leve, rápido)
+    var getCats, getStreams;
+
     if (tab === 'live') {
-      API.getLiveCategories().then(function (cats) {
-        _renderCategories(cats, function (catId) {
-          Renderer.setLoading(true);
-          API.getLiveStreams(catId).then(function (items) {
-            _renderGrid(items);
-            Renderer.setLoading(false);
-          }).catch(_handleLoadError);
-        });
-        return API.getLiveStreams('');
-      }).then(function (items) {
-        _renderGrid(items);
-        Search.setData(items);
-        Renderer.setLoading(false);
-      }).catch(_handleLoadError);
-
+      getCats    = API.getLiveCategories;
+      getStreams  = API.getLiveStreams;
     } else if (tab === 'movies') {
-      API.getVodCategories().then(function (cats) {
-        _renderCategories(cats, function (catId) {
-          Renderer.setLoading(true);
-          API.getVodStreams(catId).then(function (items) {
-            _renderGrid(items);
-            Renderer.setLoading(false);
-          }).catch(_handleLoadError);
-        });
-        return API.getVodStreams('');
-      }).then(function (items) {
-        _renderGrid(items);
-        Search.appendData(items);
-        Renderer.setLoading(false);
-      }).catch(_handleLoadError);
-
+      getCats    = API.getVodCategories;
+      getStreams  = API.getVodStreams;
     } else if (tab === 'series') {
-      API.getSeriesCategories().then(function (cats) {
-        _renderCategories(cats, function (catId) {
-          Renderer.setLoading(true);
-          API.getSeriesList(catId).then(function (items) {
-            _renderGrid(items);
-            Renderer.setLoading(false);
-          }).catch(_handleLoadError);
-        });
-        return API.getSeriesList('');
-      }).then(function (items) {
-        _renderGrid(items);
-        Search.appendData(items);
-        Renderer.setLoading(false);
-      }).catch(_handleLoadError);
+      getCats    = API.getSeriesCategories;
+      getStreams  = API.getSeriesList;
+    } else {
+      Renderer.setLoading(false);
+      return;
     }
+
+    getCats().then(function (cats) {
+      // Renderiza botões de categoria.
+      // O callback é chamado quando usuário clica em uma categoria
+      _renderCategoriesLazy(cats, getStreams);
+
+      // Passo 2: auto-seleciona a primeira categoria (sem carregar tudo)
+      if (cats && cats.length > 0) {
+        var firstCat = cats[0];
+        _state.activeCategory = firstCat.category_id;
+        getStreams(firstCat.category_id).then(function (items) {
+          _renderGrid(items);
+          Search.setData(items);
+          Renderer.setLoading(false);
+        }).catch(_handleLoadError);
+      } else {
+        Renderer.setLoading(false);
+        Renderer.setEmpty(true);
+      }
+    }).catch(_handleLoadError);
   }
 
-  /* ══════════════ M3U Tab Loading ══════════════ */
+  /**
+   * Renderiza filtros de categoria com carregamento lazy por click.
+   * Marca o primeiro botão como ativo e controla estado de seleção.
+   */
+  function _renderCategoriesLazy(categories, getStreams) {
+    var container = document.getElementById('category-filter');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Botão "Todos" – mostra atenção: pode ser lento em listas grandes
+    // Removido: na carga por categoria evitamos "Todos" para não travar a TV
+
+    if (!categories || !categories.length) return;
+
+    categories.forEach(function (cat, idx) {
+      var btn = document.createElement('button');
+      btn.className = 'cat-btn' + (idx === 0 ? ' active' : '');
+      btn.textContent = cat.category_name;
+      btn.dataset.catId = cat.category_id;
+      btn.tabIndex = 0;
+
+      btn.addEventListener('click', function () {
+        // Evita recarregar a mesma categoria
+        if (_state.activeCategory === cat.category_id) return;
+        _state.activeCategory = cat.category_id;
+
+        // Atualiza foco visual dos botões
+        var btns = container.querySelectorAll('.cat-btn');
+        for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+        btn.classList.add('active');
+
+        // Carrega os streams dessa categoria
+        Renderer.setLoading(true);
+        getStreams(cat.category_id).then(function (items) {
+          _renderGrid(items);
+          Search.setData(items);
+          Renderer.setLoading(false);
+        }).catch(_handleLoadError);
+      });
+
+      btn.addEventListener('keydown', function (e) {
+        if (e.keyCode === 13) { e.preventDefault(); btn.click(); }
+      });
+
+      container.appendChild(btn);
+    });
+  }
+
+  /* ══════════════ M3U Tab Loading (por categoria) ══════════════ */
   function _loadM3UTab(tab) {
     API.loadM3U().then(function (allItems) {
       var typeMap = { live: 'live', movies: 'movie', series: 'series' };
@@ -390,15 +466,26 @@ var App = (function () {
       });
       var cats = Object.values ? Object.values(groups) : Object.keys(groups).map(function(k){ return groups[k]; });
 
-      _renderCategories(cats, function (catId) {
-        var items = catId
-          ? filtered.filter(function (i) { return (i.category_name || i.group) === catId; })
-          : filtered;
-        _renderGrid(items);
+      // Renderiza categorias com carregamento lazy
+      _renderCategoriesLazy(cats, function (catId) {
+        return new Promise(function (resolve) {
+          var items = filtered.filter(function (i) { return (i.category_name || i.group) === catId; });
+          resolve(items);
+        });
       });
 
-      _renderGrid(filtered);
-      Search.setData(allItems);
+      // Auto-seleciona primeira categoria
+      if (cats && cats.length > 0) {
+        _state.activeCategory = cats[0].category_id;
+        var firstItems = filtered.filter(function (i) {
+          return (i.category_name || i.group) === cats[0].category_id;
+        });
+        _renderGrid(firstItems);
+        Search.setData(allItems);
+      } else {
+        _renderGrid(filtered);
+        Search.setData(allItems);
+      }
       Renderer.setLoading(false);
     }).catch(_handleLoadError);
   }
