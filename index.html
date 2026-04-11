@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Player IPTV Web - Assista TV ao vivo, filmes e séries diretamente no navegador da sua Smart TV">
+  <title>StreamTV – Player IPTV</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ===================== TELA DE LOGIN ===================== -->
+  <div id="screen-login" class="screen active" role="main" aria-label="Tela de conexão">
+    <div class="login-bg">
+      <div class="login-orb login-orb-1"></div>
+      <div class="login-orb login-orb-2"></div>
+    </div>
+    <div class="login-container">
+      <div class="login-logo">
+        <div class="logo-icon">▶</div>
+        <h1 class="logo-title">StreamTV</h1>
+        <p class="logo-subtitle">Player IPTV Premium</p>
+      </div>
+
+      <!-- Tabs de tipo de conexão -->
+      <div class="login-tabs" role="tablist">
+        <button id="tab-xtream" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-xtream" tabindex="0">
+          Xtream Codes
+        </button>
+        <button id="tab-m3u" class="tab-btn" role="tab" aria-selected="false" aria-controls="form-m3u" tabindex="0">
+          Lista M3U
+        </button>
+      </div>
+
+      <!-- Formulário Xtream Codes -->
+      <div id="form-xtream" class="login-form" role="tabpanel" aria-labelledby="tab-xtream">
+        <div class="form-group">
+          <label for="xtream-server">Servidor</label>
+          <input id="xtream-server" type="url" placeholder="http://servidor.com:porta" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label for="xtream-user">Usuário</label>
+          <input id="xtream-user" type="text" placeholder="seu_usuario" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label for="xtream-pass">Senha</label>
+          <input id="xtream-pass" type="password" placeholder="sua_senha" autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Formulário M3U -->
+      <div id="form-m3u" class="login-form hidden" role="tabpanel" aria-labelledby="tab-m3u">
+        <div class="form-group">
+          <label for="m3u-url">URL da Playlist M3U</label>
+          <input id="m3u-url" type="url" placeholder="http://servidor.com/lista.m3u" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <!-- Status e ações -->
+      <div id="login-status" class="login-status" role="status" aria-live="polite"></div>
+
+      <div class="login-actions">
+        <button id="btn-connect" class="btn-primary" tabindex="0">
+          <span class="btn-icon">⚡</span> Conectar
+        </button>
+        <button id="btn-demo" class="btn-secondary" tabindex="0">
+          <span class="btn-icon">🎬</span> Modo Demonstração
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TELA PRINCIPAL ===================== -->
+  <div id="screen-main" class="screen hidden" role="main" aria-label="Painel principal">
+
+    <!-- Sidebar / Menu lateral -->
+    <nav id="sidebar" class="sidebar" role="navigation" aria-label="Menu principal">
+      <div class="sidebar-logo">
+        <span class="logo-icon-sm">▶</span>
+        <span class="sidebar-app-name">StreamTV</span>
+      </div>
+      <ul class="sidebar-menu" role="menubar">
+        <li class="menu-item active" data-tab="live" role="menuitem" tabindex="0" aria-label="TV ao Vivo">
+          <span class="menu-icon" aria-hidden="true">📺</span>
+          <span class="menu-label">TV ao Vivo</span>
+        </li>
+        <li class="menu-item" data-tab="movies" role="menuitem" tabindex="0" aria-label="Filmes">
+          <span class="menu-icon" aria-hidden="true">🎬</span>
+          <span class="menu-label">Filmes</span>
+        </li>
+        <li class="menu-item" data-tab="series" role="menuitem" tabindex="0" aria-label="Séries">
+          <span class="menu-icon" aria-hidden="true">🎭</span>
+          <span class="menu-label">Séries</span>
+        </li>
+        <li class="menu-item" data-tab="favorites" role="menuitem" tabindex="0" aria-label="Favoritos">
+          <span class="menu-icon" aria-hidden="true">⭐</span>
+          <span class="menu-label">Favoritos</span>
+        </li>
+        <li class="menu-item" data-tab="recents" role="menuitem" tabindex="0" aria-label="Recentes">
+          <span class="menu-icon" aria-hidden="true">🕐</span>
+          <span class="menu-label">Recentes</span>
+        </li>
+        <li class="menu-item" data-tab="search" role="menuitem" tabindex="0" aria-label="Busca">
+          <span class="menu-icon" aria-hidden="true">🔍</span>
+          <span class="menu-label">Busca</span>
+        </li>
+        <li class="menu-item" data-tab="settings" role="menuitem" tabindex="0" aria-label="Configurações">
+          <span class="menu-icon" aria-hidden="true">⚙️</span>
+          <span class="menu-label">Configurações</span>
+        </li>
+      </ul>
+      <div class="sidebar-user">
+        <div class="user-info">
+          <span class="user-dot"></span>
+          <span id="user-display-name" class="user-name">Conectado</span>
+        </div>
+        <button id="btn-logout" class="sidebar-logout" tabindex="0" aria-label="Sair">Sair</button>
+      </div>
+    </nav>
+
+    <!-- Conteúdo principal -->
+    <div id="main-content" class="main-content" role="region" aria-label="Conteúdo">
+
+      <!-- Cabeçalho do conteúdo -->
+      <header class="content-header">
+        <h2 id="content-title" class="content-title">TV ao Vivo</h2>
+        <div class="header-actions">
+          <div id="category-filter" class="category-filter" role="group" aria-label="Filtrar por categoria"></div>
+          <div class="header-search-inline">
+            <input id="inline-search" type="search" placeholder="Buscar..." class="inline-search-input" aria-label="Busca rápida">
+          </div>
+        </div>
+      </header>
+
+      <!-- Grid de cards -->
+      <div id="content-grid" class="content-grid" role="list" aria-label="Lista de conteúdo"></div>
+
+      <!-- Loading spinner -->
+      <div id="content-loading" class="content-loading hidden" aria-live="polite">
+        <div class="spinner"></div>
+        <p>Carregando...</p>
+      </div>
+
+      <!-- Empty state -->
+      <div id="content-empty" class="content-empty hidden" aria-live="polite">
+        <div class="empty-icon">📭</div>
+        <p class="empty-text">Nenhum item encontrado</p>
+      </div>
+
+      <!-- ===================== ABA: BUSCA ===================== -->
+      <div id="tab-search" class="tab-panel hidden" role="search" aria-label="Busca">
+        <div class="search-container">
+          <div class="search-input-wrapper">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input id="search-input" type="search" placeholder="Digite para buscar canais, filmes, séries..." class="search-input" aria-label="Campo de busca" autocomplete="off">
+          </div>
+          <div id="search-results" class="search-results" role="list" aria-label="Resultados da busca"></div>
+          <div id="search-empty" class="search-empty hidden">
+            <p>Digite algo para buscar...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===================== ABA: CONFIGURAÇÕES ===================== -->
+      <div id="tab-settings" class="tab-panel hidden" role="region" aria-label="Configurações">
+        <div class="settings-container">
+          <h3 class="settings-section-title">Aparência</h3>
+          <div class="settings-group">
+            <div class="settings-item" tabindex="0">
+              <div class="settings-item-info">
+                <span class="settings-label">Tamanho da Interface</span>
+                <span class="settings-desc">Ajusta o zoom geral da interface</span>
+              </div>
+              <div class="settings-control">
+                <button id="size-decrease" class="ctrl-btn" aria-label="Diminuir tamanho">A-</button>
+                <span id="size-display" class="ctrl-display">100%</span>
+                <button id="size-increase" class="ctrl-btn" aria-label="Aumentar tamanho">A+</button>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="settings-section-title">Dados</h3>
+          <div class="settings-group">
+            <div class="settings-item" tabindex="0">
+              <div class="settings-item-info">
+                <span class="settings-label">Limpar Favoritos</span>
+                <span class="settings-desc">Remove todos os itens favoritados</span>
+              </div>
+              <button id="clear-favorites" class="btn-danger-sm" tabindex="0">Limpar</button>
+            </div>
+            <div class="settings-item" tabindex="0">
+              <div class="settings-item-info">
+                <span class="settings-label">Limpar Histórico</span>
+                <span class="settings-desc">Remove os itens assistidos recentemente</span>
+              </div>
+              <button id="clear-recents" class="btn-danger-sm" tabindex="0">Limpar</button>
+            </div>
+            <div class="settings-item" tabindex="0">
+              <div class="settings-item-info">
+                <span class="settings-label">Limpar Tudo</span>
+                <span class="settings-desc">Remove todos os dados salvos localmente</span>
+              </div>
+              <button id="clear-all" class="btn-danger-sm" tabindex="0">Limpar Tudo</button>
+            </div>
+          </div>
+
+          <h3 class="settings-section-title">Conexão</h3>
+          <div class="settings-group">
+            <div class="settings-item">
+              <div class="settings-item-info">
+                <span class="settings-label">Conta Conectada</span>
+                <span id="settings-account" class="settings-desc">Carregando...</span>
+              </div>
+              <button id="settings-logout" class="btn-danger-sm" tabindex="0">Desconectar</button>
+            </div>
+          </div>
+
+          <h3 class="settings-section-title">Sobre</h3>
+          <div class="settings-group">
+            <div class="settings-item">
+              <div class="settings-item-info">
+                <span class="settings-label">StreamTV Player</span>
+                <span class="settings-desc">Versão 1.0 – Player IPTV para Smart TV</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- fim main-content -->
+  </div><!-- fim screen-main -->
+
+  <!-- ===================== TELA: DETALHE SÉRIE/FILME ===================== -->
+  <div id="screen-detail" class="screen hidden" role="main" aria-label="Detalhes">
+    <div class="detail-backdrop" id="detail-backdrop"></div>
+    <div class="detail-overlay"></div>
+    <div class="detail-content">
+      <button id="detail-back" class="detail-back-btn" tabindex="0" aria-label="Voltar">← Voltar</button>
+      <div class="detail-info">
+        <img id="detail-cover" class="detail-cover" src="" alt="" loading="lazy">
+        <div class="detail-meta">
+          <h2 id="detail-title" class="detail-title"></h2>
+          <div id="detail-badges" class="detail-badges"></div>
+          <p id="detail-plot" class="detail-plot"></p>
+          <div class="detail-actions">
+            <button id="detail-play" class="btn-primary btn-large" tabindex="0">
+              <span>▶</span> Assistir
+            </button>
+            <button id="detail-favorite" class="btn-outline btn-large" tabindex="0">
+              <span id="detail-fav-icon">☆</span> Favoritar
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Episódios de séries -->
+      <div id="series-episodes-panel" class="episodes-panel hidden">
+        <div class="seasons-row" id="seasons-row" role="tablist" aria-label="Temporadas"></div>
+        <div id="episodes-grid" class="episodes-grid" role="list" aria-label="Episódios"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TELA: PLAYER ===================== -->
+  <div id="screen-player" class="screen hidden" role="main" aria-label="Player">
+    <video id="video-player" class="video-element" playsinline preload="none" aria-label="Player de vídeo"></video>
+    <div id="player-overlay" class="player-overlay" aria-hidden="true">
+      <div class="player-top-bar">
+        <button id="player-back" class="player-btn-back" tabindex="0" aria-label="Voltar">← Voltar</button>
+        <div class="player-channel-info">
+          <img id="player-logo" class="player-logo" src="" alt="" loading="lazy">
+          <span id="player-title" class="player-title"></span>
+        </div>
+      </div>
+      <div class="player-center">
+        <button id="player-play-pause" class="player-big-btn" tabindex="0" aria-label="Play/Pause">⏸</button>
+      </div>
+      <div class="player-bottom-bar">
+        <div class="player-progress">
+          <div id="player-progress-bar" class="progress-bar">
+            <div id="player-progress-fill" class="progress-fill"></div>
+          </div>
+          <div class="player-time">
+            <span id="player-time-current">0:00</span>
+            <span id="player-time-total">--:--</span>
+          </div>
+        </div>
+        <div class="player-controls">
+          <button id="player-rewind" class="player-ctrl-btn" tabindex="0" aria-label="Retroceder 10s">⏮ 10s</button>
+          <button id="player-forward" class="player-ctrl-btn" tabindex="0" aria-label="Avançar 10s">10s ⏭</button>
+          <button id="player-fullscreen" class="player-ctrl-btn" tabindex="0" aria-label="Tela cheia">⛶ Tela Cheia</button>
+        </div>
+      </div>
+    </div>
+    <div id="player-loading" class="player-loading" aria-live="polite">
+      <div class="spinner spinner-large"></div>
+      <p id="player-loading-text">Carregando stream...</p>
+    </div>
+    <div id="player-error" class="player-error hidden" aria-live="assertive">
+      <div class="error-icon">⚠️</div>
+      <p id="player-error-text">Erro ao carregar o stream</p>
+      <button id="player-retry" class="btn-primary" tabindex="0">Tentar Novamente</button>
+      <button id="player-back-from-error" class="btn-outline" tabindex="0">Voltar</button>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Scripts - carregados no final para não bloquear -->
+  <script src="modules/storage.js"></script>
+  <script src="modules/auth.js"></script>
+  <script src="modules/api.js"></script>
+  <script src="modules/renderer.js"></script>
+  <script src="modules/search.js"></script>
+  <script src="modules/player.js"></script>
+  <script src="modules/navigation.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
