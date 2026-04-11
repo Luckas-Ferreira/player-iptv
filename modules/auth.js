@@ -90,8 +90,15 @@ var Auth = (function () {
     Storage.clearAuth();
   }
 
-  // --- Helpers de fetch ---
+  function _getProxyUrl(url) {
+    if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+      return 'https://corsproxy.io/?' + encodeURIComponent(url);
+    }
+    return url;
+  }
+
   function _fetchJSON(url) {
+    url = _getProxyUrl(url);
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
@@ -114,6 +121,7 @@ var Auth = (function () {
   }
 
   function _fetchText(url) {
+    url = _getProxyUrl(url);
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
