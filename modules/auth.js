@@ -95,7 +95,7 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
-      xhr.timeout = 12000;
+      xhr.timeout = 30000;
       xhr.onload = function () {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
@@ -117,7 +117,7 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
-      xhr.timeout = 20000;
+      xhr.timeout = 45000;
       xhr.onload = function () {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(xhr.responseText);

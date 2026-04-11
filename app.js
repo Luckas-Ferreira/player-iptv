@@ -68,10 +68,6 @@ var App = (function () {
     var btnConnect = document.getElementById('btn-connect');
     if (btnConnect) btnConnect.addEventListener('click', _handleLogin);
 
-    // Botão demo
-    var btnDemo = document.getElementById('btn-demo');
-    if (btnDemo) btnDemo.addEventListener('click', _handleDemo);
-
     // Enter nos inputs dispara login
     var inputs = document.querySelectorAll('.login-form input');
     for (var i = 0; i < inputs.length; i++) {
@@ -147,17 +143,6 @@ var App = (function () {
         }
       });
     }
-  }
-
-  function _handleDemo() {
-    _setLoginStatus('Carregando dados de demonstração...', 'loading');
-    _state.mode = 'demo';
-    _state.demoData = API.getDemoData();
-
-    setTimeout(function () {
-      _setLoginStatus('Modo de demonstração ativado!', 'success');
-      setTimeout(function () { _enterMain(); }, 600);
-    }, 500);
   }
 
   function _setLoginStatus(msg, type) {
@@ -293,9 +278,7 @@ var App = (function () {
     Renderer.setLoading(true);
     Renderer.setEmpty(false);
 
-    if (_state.mode === 'demo') {
-      _loadDemoTab(tab);
-    } else if (_state.mode === 'xtream') {
+    if (_state.mode === 'xtream') {
       _loadXtreamTab(tab);
     } else if (_state.mode === 'm3u') {
       _loadM3UTab(tab);
