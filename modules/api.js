@@ -108,7 +108,8 @@ var API = (function () {
   function getLiveStreamUrl(streamId, ext) {
     var creds = Auth.getCredentials();
     if (!creds) return '';
-    ext = ext || 'ts';
+    // Usa m3u8 por padrão — todos os browsers modernos e HLS.js suportam
+    ext = ext || 'm3u8';
     return creds.server + '/live/' + creds.username + '/' + creds.password + '/' + streamId + '.' + ext;
   }
 

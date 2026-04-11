@@ -7,12 +7,14 @@
 var Player = (function () {
   'use strict';
 
-  var _hls = null;
-  var _video = null;
-  var _overlay = null;
-  var _hideTimer = null;
+  var _hls        = null;
+  var _video      = null;
+  var _overlay    = null;
+  var _hideTimer  = null;
+  var _bufTimer   = null;  // watchdog: detecta buffering infinito
   var _currentItem = null;
-  var _isPlaying = false;
+  var _isPlaying  = false;
+  var _triedTS    = false;  // flag: já tentou fallback .ts?
   var HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.light.min.js';
 
   function init() {
@@ -88,6 +90,7 @@ var Player = (function () {
   function play(item) {
     _currentItem = item;
     var url = _getStreamUrl(item);
+    var type = item._type || 'live';
 
     _showLoading('Carregando stream...');
     _hideError();
@@ -108,47 +111,88 @@ var Player = (function () {
 
     // Destruir instância HLS anterior
     _destroyHLS();
+    _triedTS = false;
 
     if (!url) {
       _showError('URL de stream não disponível');
       return;
     }
 
-    // Decide se usa HLS ou vídeo nativo
     var ext = _getExt(url);
-    var needsHLS = (ext === 'm3u8' || ext === 'hls') && !_video.canPlayType('application/vnd.apple.mpegurl');
 
-    if (needsHLS) {
-      _loadHLSandPlay(url);
-    } else {
-      _playDirect(url);
+    // Streams ao vivo (.m3u8) — sempre tenta HLS
+    if (ext === 'm3u8') {
+      var nativeHLS = _video.canPlayType('application/vnd.apple.mpegurl');
+      if (nativeHLS && nativeHLS !== '') {
+        // Safari / navegadores com suporte nativo a HLS
+        _playDirect(url);
+      } else {
+        // Todos os outros: usa HLS.js
+        _loadHLSandPlay(url);
+      }
+      return;
     }
+
+    // VOD / séries — tenta reproduzão direta
+    _playDirect(url);
   }
 
   function _playDirect(url) {
     _video.src = url;
     _video.load();
     _tryCatch(function () { return _video.play(); });
+    // Watchdog: se ficar 25s em buffering, tenta .ts
+    _startBufWatchdog(url);
   }
 
   function _loadHLSandPlay(url) {
     if (window.Hls) {
-      _initHLS(url);
+      _resolveRedirectAndPlay(url);
       return;
     }
-    // Carrega hls.js sob demanda
+    // Carrega hls.js sob demanda via CDN
     var showLoadingMsg = document.getElementById('player-loading-text');
     if (showLoadingMsg) showLoadingMsg.textContent = 'Carregando suporte HLS...';
 
     var script = document.createElement('script');
     script.src = HLS_CDN;
-    script.onload = function () { _initHLS(url); };
+    script.onload = function () { _resolveRedirectAndPlay(url); };
     script.onerror = function () {
-      // Fallback: tenta reprodução direta
-      console.warn('[Player] Falha ao carregar hls.js, tentando reprodução direta');
-      _playDirect(url);
+      // CDN falhou — tenta .ts direto
+      console.warn('[Player] Falha ao carregar hls.js, tentando .ts');
+      var tsUrl = url.replace('.m3u8', '.ts');
+      _playDirect(tsUrl);
     };
     document.head.appendChild(script);
+  }
+
+  /**
+   * Resolve o redirect do servidor IPTV antes de passar para o HLS.js.
+   * Servidores Xtream Codes frequentemente redirecionam .m3u8 para outro host
+   * com URLs de segmento relativas — o HLS.js precisa do URL final como base.
+   */
+  function _resolveRedirectAndPlay(url) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = 10000;
+    xhr.onreadystatechange = function () {
+      // Pega o responseURL (URL final após redirect)
+      if (xhr.readyState === 4) {
+        var finalUrl = xhr.responseURL || url;
+        console.log('[Player] URL original:', url);
+        console.log('[Player] URL final (após redirect):', finalUrl);
+        _initHLS(finalUrl);
+      }
+    };
+    xhr.ontimeout = function () {
+      console.warn('[Player] Timeout ao resolver redirect, usando URL original');
+      _initHLS(url);
+    };
+    xhr.onerror = function () {
+      console.warn('[Player] Erro ao resolver redirect, usando URL original');
+      _initHLS(url);
+    };
+    xhr.send();
   }
 
   function _initHLS(url) {
@@ -158,24 +202,67 @@ var Player = (function () {
       return;
     }
     _hls = new Hls({
-      maxBufferLength: 30,
-      maxMaxBufferLength: 60,
-      enableWorker: false  // desativado para compatibilidade com TVs antigas
+      // Buffer reduzido — inicia reprodução mais rápido
+      maxBufferLength:          8,
+      maxMaxBufferLength:       30,
+      maxBufferSize:            20 * 1000 * 1000,  // 20 MB
+      maxBufferHole:            0.5,
+      lowLatencyMode:           false,
+      enableWorker:             false,             // compatibilidade TVs
+      startFragPrefetch:        true,
+      manifestLoadingTimeOut:   20000,
+      levelLoadingTimeOut:      20000,
+      fragLoadingTimeOut:       30000,
+      xhrSetup: function (xhr) {
+        xhr.withCredentials = false;               // evita CORS pre-flight
+      }
     });
     _hls.loadSource(url);
     _hls.attachMedia(_video);
     _hls.on(Hls.Events.MANIFEST_PARSED, function () {
       _tryCatch(function () { return _video.play(); });
+      _startBufWatchdog(url);  // monitora buffering após manifesto
     });
     _hls.on(Hls.Events.ERROR, function (event, data) {
       if (data.fatal) {
-        _showError('Erro no stream HLS. Verifique a conexão.');
+        console.warn('[Player] Erro HLS fatal:', data.type, data.details);
         _destroyHLS();
+        _fallbackTS(url);
       }
     });
   }
 
+  /** Tenta reproduzir o stream em .ts se .m3u8 falhar */
+  function _fallbackTS(m3u8Url) {
+    if (_triedTS) {
+      _showError('Stream indisponível. Tente outro canal.');
+      return;
+    }
+    _triedTS = true;
+    var tsUrl = m3u8Url.replace('.m3u8', '.ts');
+    console.log('[Player] Fallback .ts:', tsUrl);
+    _showLoading('Tentando formato alternativo...');
+    _playDirect(tsUrl);
+  }
+
+  /** Watchdog: se em 25s ainda estiver buffering, faz fallback .ts */
+  function _startBufWatchdog(url) {
+    _clearBufWatchdog();
+    _bufTimer = setTimeout(function () {
+      if (!_isPlaying && _currentItem) {
+        console.warn('[Player] Timeout de buffering, tentando fallback');
+        _destroyHLS();
+        _fallbackTS(url);
+      }
+    }, 25000);
+  }
+
+  function _clearBufWatchdog() {
+    if (_bufTimer) { clearTimeout(_bufTimer); _bufTimer = null; }
+  }
+
   function _destroyHLS() {
+    _clearBufWatchdog();
     if (_hls) {
       try { _hls.destroy(); } catch (e) {}
       _hls = null;
@@ -209,6 +296,7 @@ var Player = (function () {
 
   function _onPlaying() {
     _isPlaying = true;
+    _clearBufWatchdog(); // stream funcionando, cancela watchdog
     _hideLoading();
     _hideError();
     var btn = document.getElementById('player-play-pause');
