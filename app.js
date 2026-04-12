@@ -22,7 +22,8 @@ var App = (function () {
     uiScale: 100,
     miniActive: false,
     miniItem: null,
-    loadToken: 0
+    loadToken: 0,
+    isLoggingIn: false
   };
 
   /* ══════════════════════════════════════
@@ -83,37 +84,51 @@ var App = (function () {
   }
 
   function _handleLogin() {
+    if (_state.isLoggingIn) return;
     var isX = document.getElementById('tab-xtream');
     isX = isX && isX.classList.contains('active');
+    
+    _state.isLoggingIn = true;
     _setLoginStatus('Conectando…', 'loading');
 
+    var p;
     if (isX) {
       var srv = (document.getElementById('xtream-server') || {}).value || '';
       var usr = (document.getElementById('xtream-user') || {}).value || '';
       var pwd = (document.getElementById('xtream-pass') || {}).value || '';
-      if (!srv || !usr || !pwd) { _setLoginStatus('Preencha todos os campos', 'error'); return; }
-
-      Auth.loginXtream(srv, usr, pwd).then(function (r) {
-        if (r.success) {
-          _state.mode = 'xtream';
-          Storage.saveAuth({ type: 'xtream', server: srv, username: usr, password: pwd });
-          _setLoginStatus('Conectado!', 'success');
-          setTimeout(_enterMain, 600);
-        } else { _setLoginStatus(r.error || 'Falha na conexão', 'error'); }
-      });
+      if (!srv || !usr || !pwd) { 
+        _state.isLoggingIn = false;
+        _setLoginStatus('Preencha todos os campos', 'error'); 
+        return; 
+      }
+      p = Auth.loginXtream(srv, usr, pwd);
     } else {
       var url = (document.getElementById('m3u-url') || {}).value || '';
-      if (!url) { _setLoginStatus('Insira uma URL M3U', 'error'); return; }
-
-      Auth.loginM3U(url).then(function (r) {
-        if (r.success) {
-          _state.mode = 'm3u';
-          Storage.saveAuth({ type: 'm3u', url: url });
-          _setLoginStatus('Lista carregada!', 'success');
-          setTimeout(_enterMain, 600);
-        } else { _setLoginStatus(r.error || 'Falha ao carregar lista', 'error'); }
-      });
+      if (!url) { 
+        _state.isLoggingIn = false;
+        _setLoginStatus('Insira uma URL M3U', 'error'); 
+        return; 
+      }
+      p = Auth.loginM3U(url);
     }
+
+    p.then(function (r) {
+      if (r.success) {
+        _state.mode = isX ? 'xtream' : 'm3u';
+        _setLoginStatus('Conectado!', 'success');
+        setTimeout(function() {
+          _state.isLoggingIn = false;
+          _enterMain();
+        }, 600);
+      } else {
+        _state.isLoggingIn = false;
+        _setLoginStatus(r.error || 'Falha na conexão', 'error');
+      }
+    }).catch(function(err) {
+      _state.isLoggingIn = false;
+      _setLoginStatus('Erro inesperado', 'error');
+      console.error('[Login]', err);
+    });
   }
 
   function _setLoginStatus(msg, type) {
@@ -129,15 +144,24 @@ var App = (function () {
      TELA PRINCIPAL
   ══════════════════════════════════════ */
   function _enterMain() {
-    _showScreen('main');
-    Navigation.pushHistory('main');
-    var nameEl = document.getElementById('user-display-name');
-    if (nameEl) {
-      var c = Auth.getCredentials();
-      nameEl.textContent = (c && c.username) ? c.username : 'Conectado';
+    console.log('[App] Entrando na tela principal...');
+    try {
+      _showScreen('main');
+      Navigation.pushHistory('main');
+      
+      var nameEl = document.getElementById('user-display-name');
+      if (nameEl) {
+        var c = Auth.getCredentials() || {};
+        nameEl.textContent = c.username || 'Conectado';
+      }
+      
+      _activateTab('live');
+      Navigation.focusFirst('main');
+    } catch (e) {
+      console.error('[App] Erro ao entrar no main:', e);
+      /* Força exibição da tela principal mesmo com erro em sub-etapas */
+      _showScreen('main');
     }
-    _activateTab('live');
-    Navigation.focusFirst('main');
   }
 
   function _bindMainEvents() {

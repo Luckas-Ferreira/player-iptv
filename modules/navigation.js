@@ -242,6 +242,7 @@ var Navigation = (function () {
   }
 
   function pushHistory(name) {
+    if (!_history) _history = [];
     if (_history[_history.length - 1] !== name) {
       _history.push(name);
     }
