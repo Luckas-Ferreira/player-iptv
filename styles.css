@@ -153,16 +153,14 @@ input, select { font-family: inherit; }
 
 .login-container {
   position: relative;
-  z-index: 1;
-  margin: auto;
+  z-index: 10;
   width: 100%;
-  max-width: 480px;
-  padding: 56px 52px 48px;
-  background: rgba(24,24,28,0.9);
+  max-width: 420px;
+  background: rgba(18, 18, 18, 0.95);
   border: 1px solid var(--border-low);
-  border-radius: 20px;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border-radius: 28px;
+  padding: 48px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.8);
 }
 
 /* Logo */
@@ -542,17 +540,16 @@ input, select { font-family: inherit; }
 
 /* Header */
 .content-header {
+  position: -webkit-sticky;
   position: sticky;
   top: 0;
-  z-index: 100;
-  padding: 24px 32px 14px;
-  background: linear-gradient(to bottom, var(--bg-base) 80%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  z-index: 200;
+  padding: 20px 32px 10px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  gap: 10px;
 }
 
 .content-title {
@@ -571,6 +568,8 @@ input, select { font-family: inherit; }
 
 /* Filtro de categorias premium */
 .category-filter {
+  position: relative;
+  z-index: 201;
   display: flex;
   gap: 8px;
   overflow-x: auto;
@@ -693,19 +692,8 @@ input, select { font-family: inherit; }
   opacity: 0.4;
 }
 .card-placeholder.portrait { aspect-ratio: 2/3; }
-.card-placeholder-icon {
-  font-size: 28px;
-  opacity: 0.2;
-  filter: grayscale(1);
-}
-.card-placeholder-text {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-4);
-  text-align: center;
-  padding: 0 10px;
-  line-height: 1.4;
-}
+.card-placeholder-icon { display: none !important; }
+.card-placeholder-text { font-size: 11px; font-weight: 500; color: var(--text-4); text-align: center; padding: 0 8px; line-height: 1.4; }
 
 /* Gradiente sobre a imagem — só aparece no hover/focus */
 .card::after {
@@ -757,7 +745,6 @@ input, select { font-family: inherit; }
   z-index: 3;
   opacity: 0;
   transition: opacity var(--trans), background var(--trans);
-  backdrop-filter: blur(4px);
   pointer-events: none; /* Deixa o clique sempre passar pro card ou usar o long-press */
 }
 .card:hover .card-fav,
@@ -803,13 +790,22 @@ input, select { font-family: inherit; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
   padding: 80px 32px;
+  gap: 12px;
   color: var(--text-3);
-  font-size: 15px;
 }
-.empty-icon { font-size: 48px; opacity: 0.3; }
-.empty-text { font-size: 16px; color: var(--text-3); font-weight: 500; }
+.empty-icon { display: none !important; }
+.empty-text { font-size: 16px; font-weight: 500; color: var(--text-secondary); text-align: center; }
+.content-empty::before {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
 
 /* Spinner */
 .spinner {
@@ -1156,7 +1152,6 @@ input, select { font-family: inherit; }
   color: #fff;
   font-size: 14px;
   font-weight: 600;
-  backdrop-filter: blur(8px);
   flex-shrink: 0;
 }
 .player-btn-back:hover, .player-btn-back:focus {
@@ -1194,7 +1189,6 @@ input, select { font-family: inherit; }
   color: #fff;
   display: flex; align-items: center; justify-content: center;
   transition: background var(--trans), transform var(--trans);
-  backdrop-filter: blur(8px);
 }
 .player-big-btn:hover, .player-big-btn:focus {
   background: var(--accent);
@@ -1250,7 +1244,6 @@ input, select { font-family: inherit; }
   color: #fff;
   font-size: 13px;
   font-weight: 600;
-  backdrop-filter: blur(8px);
 }
 .player-ctrl-btn:hover, .player-ctrl-btn:focus {
   background: rgba(255,255,255,0.12);

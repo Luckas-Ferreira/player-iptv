@@ -291,6 +291,16 @@ var App = (function () {
       /* Descarta chunks de requisições antigas */
       if (token !== _state.loadToken) return;
 
+      /* Filtra itens sem nome (evita bloco "Sem nome") */
+      var filteredChunk = [];
+      for (var i = 0; i < chunk.length; i++) {
+        var item = chunk[i];
+        if (item && item.name && item.name.trim() !== '') {
+          filteredChunk.push(item);
+        }
+      }
+      if (filteredChunk.length === 0) return;
+
       /* Na primeira chegada de dados: esconde spinner e mostra grade */
       if (!firstChunkReceived) {
         firstChunkReceived = true;
@@ -298,27 +308,24 @@ var App = (function () {
         if (grid) grid.style.display = '';
       }
 
-      _state.allItems = _state.allItems.concat(chunk);
-
-      /* Renderiza apenas os primeiros N itens imediatamente para não travar a TV */
-      var limit = _state.activeTab === 'live' ? 100 : 40;
-      if (_state.renderedCount < limit && grid) {
-        var needed = limit - _state.renderedCount;
-        var toRender = chunk.slice(0, needed);
-        if (toRender.length > 0) {
-          Renderer.renderGrid(grid, toRender, {
-            onPlay: _playItem,
-            onFavorite: _onFavoriteToggle
-          }, true /* append */);
-          _state.renderedCount += toRender.length;
-        }
+      _state.allItems = _state.allItems.concat(filteredChunk);
+      
+      /* Se ainda não renderizamos nada, mostra o primeiro lote logo */
+      if (_state.renderedCount === 0) {
+        _loadMoreItems();
       }
-
-
     }).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
-      _state.allItems = allItems || [];
+      /* Filtra o payload final também para garantir */
+      var finalItems = [];
+      if (allItems) {
+        for (var i = 0; i < allItems.length; i++) {
+          var it = allItems[i];
+          if (it && it.name && it.name.trim() !== '') finalItems.push(it);
+        }
+      }
+      _state.allItems = finalItems;
 
       if (!firstChunkReceived) {
         /* Nenhum chunk recebido via streaming (proxy bufferizou tudo) */
@@ -372,7 +379,14 @@ var App = (function () {
   function _loadM3UTab(tab) {
     API.loadM3U().then(function (all) {
       var tf = { live: 'live', movies: 'movie', series: 'series' }[tab];
-      var filtered = tf ? all.filter(function (i) { return i._type === tf; }) : all;
+      /* Filtra itens sem nome e por tipo */
+      var filtered = [];
+      for (var i = 0; i < all.length; i++) {
+        var it = all[i];
+        if (it && it.name && it.name.trim() !== '' && (!tf || it._type === tf)) {
+          filtered.push(it);
+        }
+      }
 
       var groups = {};
       for (var i = 0; i < filtered.length; i++) {
