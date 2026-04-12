@@ -1,30 +1,28 @@
 /**
- * navigation.js – Navegação por controle remoto
- * Gerencia foco entre elementos e troca de telas com setas + OK + Voltar
+ * navigation.js — Navegação por controle remoto (Smart TV)
+ * v2 — corrige: scroll topo, z-index header, sem ícones quebrados
  */
 
 var Navigation = (function () {
   'use strict';
 
-  /* Mapeamento de teclas do controle remoto de Smart TV */
   var KEYS = {
-    UP:       [38, 303],  // Arrow Up
-    DOWN:     [40, 304],  // Arrow Down
-    LEFT:     [37, 301],  // Arrow Left
-    RIGHT:    [39, 302],  // Arrow Right
-    OK:       [13, 32, 195],  // Enter, Space, OK
-    BACK:     [8, 461, 196, 27],  // Backspace, Back, Escape
-    PLAY:     [415, 179],
-    PAUSE:    [19, 179],
-    PLAY_PAUSE:[415, 179, 80],
-    MENU:     [457, 36],
-    INFO:     [457]
+    UP: [38, 303],
+    DOWN: [40, 304],
+    LEFT: [37, 301],
+    RIGHT: [39, 302],
+    OK: [13, 32, 195],
+    BACK: [8, 461, 196, 27],
+    PLAY: [415, 179],
+    PAUSE: [19, 179],
+    PLAY_PAUSE: [415, 179, 80],
+    MENU: [457, 36],
+    INFO: [457]
   };
 
-  var _history = [];  // Histórico de telas para o "voltar"
+  var _history = [];
   var _currentScreen = 'login';
   var _focusableSelector = 'button:not([disabled]), [tabindex="0"], input, select';
-  var _lastFocus = {};  // Mapa: screenId -> último elemento focado
 
   function init() {
     document.addEventListener('keydown', _handleKey, false);
@@ -36,24 +34,21 @@ var Navigation = (function () {
     var isInput = focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA');
 
     if (isInput) {
-      if (code === 8) return; /* Permite uso do Backspace para apagar texto na TV */
-      if (code === 37 || code === 39) return; /* Permite navegar pelo texto com left/right */
+      if (code === 8) return;
+      if (code === 37 || code === 39) return;
       if (code === 13 || code === 195) {
-        /* OK/Enter retira o foco para abaixar o teclado na TV */
         e.preventDefault();
         focused.blur();
         return;
       }
     }
 
-    // --- Voltar ---
     if (_matchKey(code, KEYS.BACK)) {
       e.preventDefault();
       App.goBack();
       return;
     }
 
-    // --- Player: controles especiais ---
     if (_currentScreen === 'player') {
       if (_matchKey(code, KEYS.PLAY_PAUSE) || _matchKey(code, KEYS.PLAY) || _matchKey(code, KEYS.PAUSE)) {
         e.preventDefault();
@@ -62,13 +57,11 @@ var Navigation = (function () {
       }
     }
 
-    // --- Navegação por setas ---
-    if (_matchKey(code, KEYS.UP))    { e.preventDefault(); _moveFocus('up');    return; }
-    if (_matchKey(code, KEYS.DOWN))  { e.preventDefault(); _moveFocus('down');  return; }
-    if (_matchKey(code, KEYS.LEFT))  { e.preventDefault(); _moveFocus('left');  return; }
+    if (_matchKey(code, KEYS.UP)) { e.preventDefault(); _moveFocus('up'); return; }
+    if (_matchKey(code, KEYS.DOWN)) { e.preventDefault(); _moveFocus('down'); return; }
+    if (_matchKey(code, KEYS.LEFT)) { e.preventDefault(); _moveFocus('left'); return; }
     if (_matchKey(code, KEYS.RIGHT)) { e.preventDefault(); _moveFocus('right'); return; }
 
-    // --- OK / Enter: já tratado nativamente pelo browser, mas garante foco visível ---
     if (_matchKey(code, KEYS.OK)) {
       if (focused && (focused.tagName === 'DIV' || focused.tagName === 'LI')) {
         e.preventDefault();
@@ -83,34 +76,48 @@ var Navigation = (function () {
   }
 
   /**
-   * Move o foco na direção indicada
-   * Algoritmo: encontra o elemento focalizável mais próximo na direção
+   * Constraints de navegação por zona.
+   * FIX: sidebar UP não bloqueia mais — permite chegar ao topo.
+   * FIX: grid UP pode subir para category-filter corretamente.
    */
   function _getConstraints(focused, direction) {
     if (!focused) return null;
-    var inSidebar = focused.closest('.sidebar');
-    var inCategory = focused.closest('.category-filter');
-    var inGrid = focused.closest('.content-grid');
+    var inSidebar = focused.closest && focused.closest('.sidebar');
+    var inCategory = focused.closest && focused.closest('.category-filter');
+    var inGrid = focused.closest && focused.closest('.content-grid');
+    var inSettings = focused.closest && focused.closest('.settings-container');
+    var inEpisodes = focused.closest && focused.closest('.episodes-panel');
 
-    /* Sidebar Constraints */
     if (inSidebar) {
-      if (direction === 'right') return ['.main-content', '#screen-player'];
-      if (direction === 'left') return []; /* Sidebar é o limite esquerdo */
+      if (direction === 'right') return ['.main-content'];
+      if (direction === 'left') return [];           /* borda esquerda — não sai */
+      if (direction === 'up' || direction === 'down') return ['.sidebar']; /* FIX: fica na sidebar */
     }
-    /* Category Filter Constraints */
+
     if (inCategory) {
       if (direction === 'left') return ['.category-filter', '.sidebar'];
-      if (direction === 'right') return ['.category-filter']; /* Proíbe cair pra grade ao ir pra direita */
+      if (direction === 'right') return ['.category-filter'];
       if (direction === 'down') return ['.content-grid', '.content-empty'];
-      if (direction === 'up') return []; /* Topo da tela */
+      if (direction === 'up') return ['.content-header', '.sidebar']; /* FIX: sobe pro header/sidebar */
     }
-    /* Main Grid Constraints */
+
     if (inGrid) {
       if (direction === 'left') return ['.content-grid', '.sidebar'];
-      if (direction === 'right') return ['.content-grid', '.search-results', '#screen-player']; /* Acesso ao player */
-      if (direction === 'up') return ['.content-grid', '.category-filter', '.header-actions'];
+      if (direction === 'right') return ['.content-grid'];
+      /* FIX: ao subir do grid, permite chegar ao category-filter ou header */
+      if (direction === 'up') return ['.content-grid', '.category-filter', '.content-header'];
+      /* sem constraint para baixo — deixa scrollar livremente */
     }
-    return null; /* Sem restrições rígidas para outros casos */
+
+    if (inSettings) {
+      return ['.settings-container', '.sidebar'];
+    }
+
+    if (inEpisodes) {
+      return ['.episodes-panel', '.detail-content'];
+    }
+
+    return null;
   }
 
   function _moveFocus(direction) {
@@ -133,14 +140,11 @@ var Navigation = (function () {
       var el = focusables[i];
       if (el === focused) continue;
 
-      /* Se tiver regras de containeres, filtra candidatos */
       if (constraints) {
         var allowed = false;
         for (var c = 0; c < constraints.length; c++) {
-          if (el.closest(constraints[c])) {
-            allowed = true;
-            break;
-          }
+          if (constraints[c] === '') { allowed = false; break; }
+          if (el.closest && el.closest(constraints[c])) { allowed = true; break; }
         }
         if (!allowed) continue;
       }
@@ -154,52 +158,39 @@ var Navigation = (function () {
       }
     }
 
-
     if (bestEl) {
       bestEl.focus();
       _scrollIntoView(bestEl);
     }
   }
 
-  /**
-   * Calcula score de proximidade direcional via comparação centro-a-centro.
-   * O elemento candidato deve estar estritamente na direção indicada
-   * (centro do candidato > centro do atual para right/down, etc).
-   * Score = distância primária + distância lateral * 0.5 (favorece alinhamento)
-   */
   function _calcDirectionScore(from, to, direction) {
     var fromCX = from.left + from.width / 2;
     var fromCY = from.top + from.height / 2;
-    var toCX   = to.left + to.width / 2;
-    var toCY   = to.top + to.height / 2;
-
+    var toCX = to.left + to.width / 2;
+    var toCY = to.top + to.height / 2;
     var dx = toCX - fromCX;
     var dy = toCY - fromCY;
-
-    /* Tolerância: permite até 8px de desalinhamento para não bloquear
-       movimentos em grids onde linhas não são perfeitamente alinhadas. */
-    var tol = 8;
+    /* Tolerância aumentada para grids onde linhas podem não alinhar perfeitamente */
+    var tol = 12;
 
     switch (direction) {
       case 'up':
-        if (dy > -tol) return null;          /* deve estar acima */
+        if (dy > -tol) return null;
         return Math.abs(dy) + Math.abs(dx) * 0.5;
       case 'down':
-        if (dy < tol) return null;           /* deve estar abaixo */
+        if (dy < tol) return null;
         return Math.abs(dy) + Math.abs(dx) * 0.5;
       case 'left':
-        if (dx > -tol) return null;          /* deve estar à esquerda */
+        if (dx > -tol) return null;
         return Math.abs(dx) + Math.abs(dy) * 0.5;
       case 'right':
-        if (dx < tol) return null;           /* deve estar à direita */
+        if (dx < tol) return null;
         return Math.abs(dx) + Math.abs(dy) * 0.5;
     }
     return null;
   }
 
-  /**
-   * Retorna todos os elementos focalizáveis na tela ativa.
-   */
   function _getFocusables() {
     var visible = [];
 
@@ -211,11 +202,8 @@ var Navigation = (function () {
       }
     }
 
-    /* Tela principal atual */
     var mainScreen = document.getElementById('screen-' + _currentScreen) || document.body;
     _collect(mainScreen);
-
-
     return visible;
   }
 
@@ -227,12 +215,54 @@ var Navigation = (function () {
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
 
+  /**
+   * FIX scroll: garante que o elemento focado fique visível,
+   * mas respeita o header fixo calculando o offset real.
+   */
   function _scrollIntoView(el) {
+    try {
+      var header = document.querySelector('.content-header');
+      var headerH = header ? header.offsetHeight : 0;
+      var rect = el.getBoundingClientRect();
+      var scrollParent = _getScrollParent(el);
+
+      if (scrollParent) {
+        var parentRect = scrollParent.getBoundingClientRect();
+        var elTop = rect.top - parentRect.top + scrollParent.scrollTop;
+        var elBottom = elTop + rect.height;
+        var viewTop = scrollParent.scrollTop + headerH + 8;
+        var viewBot = scrollParent.scrollTop + scrollParent.clientHeight - 8;
+
+        if (elTop < viewTop) {
+          /* Subindo: posiciona abaixo do header */
+          scrollParent.scrollTop = elTop - headerH - 8;
+        } else if (elBottom > viewBot) {
+          /* Descendo: posiciona com folga inferior */
+          scrollParent.scrollTop = elBottom - scrollParent.clientHeight + 8;
+        }
+        return;
+      }
+    } catch (err) { }
+
+    /* fallback */
     try {
       el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     } catch (e) {
-      try { el.scrollIntoView(false); } catch (e2) {}
+      try { el.scrollIntoView(false); } catch (e2) { }
     }
+  }
+
+  function _getScrollParent(el) {
+    var node = el.parentNode;
+    while (node && node !== document.body) {
+      var style = window.getComputedStyle(node);
+      var overflow = style.overflow + style.overflowY;
+      if (/auto|scroll/.test(overflow) && node.scrollHeight > node.clientHeight) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+    return null;
   }
 
   /* --- Gestão de telas --- */
@@ -264,9 +294,6 @@ var Navigation = (function () {
     _history = [];
   }
 
-  /**
-   * Aplica foco inicial ao abrir uma tela
-   */
   function focusFirst(screenId) {
     setTimeout(function () {
       var screen = screenId ? document.getElementById('screen-' + screenId) : document.body;
@@ -274,7 +301,7 @@ var Navigation = (function () {
       var focusables = screen.querySelectorAll(_focusableSelector);
       for (var i = 0; i < focusables.length; i++) {
         if (_isVisible(focusables[i])) {
-          try { focusables[i].focus(); } catch(e){}
+          try { focusables[i].focus(); } catch (e) { }
           break;
         }
       }
@@ -282,13 +309,13 @@ var Navigation = (function () {
   }
 
   return {
-    init:               init,
-    setScreen:          setScreen,
-    pushHistory:        pushHistory,
-    popHistory:         popHistory,
-    getCurrentHistory:  getCurrentHistory,
-    clearHistory:       clearHistory,
-    focusFirst:         focusFirst,
-    moveFocus:          _moveFocus
+    init: init,
+    setScreen: setScreen,
+    pushHistory: pushHistory,
+    popHistory: popHistory,
+    getCurrentHistory: getCurrentHistory,
+    clearHistory: clearHistory,
+    focusFirst: focusFirst,
+    moveFocus: _moveFocus
   };
 })();
