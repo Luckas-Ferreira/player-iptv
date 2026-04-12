@@ -286,10 +286,20 @@ var App = (function () {
     _state.isLoadingMore = false;
 
     var firstChunkReceived = false;
+    var isShowingCache = false;
 
-    getStreams(categoryId, function (chunk) {
+    getStreams(categoryId, function (chunk, isCached) {
       /* Descarta chunks de requisições antigas */
       if (token !== _state.loadToken) return;
+
+      /* Se for a primeira vez recebendo dados reais (não cache) e estávamos mostrando cache, limpa */
+      if (!isCached && isShowingCache) {
+        if (grid) grid.innerHTML = '';
+        _state.allItems = [];
+        _state.renderedCount = 0;
+        isShowingCache = false;
+        firstChunkReceived = false; // Permite mostrar o spinner/grade de novo se for rápido
+      }
 
       /* Filtra itens sem nome (evita bloco "Sem nome") */
       var filteredChunk = [];
@@ -300,6 +310,8 @@ var App = (function () {
         }
       }
       if (filteredChunk.length === 0) return;
+
+      if (isCached) isShowingCache = true;
 
       /* Na primeira chegada de dados: esconde spinner e mostra grade */
       if (!firstChunkReceived) {

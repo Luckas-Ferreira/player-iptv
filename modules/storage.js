@@ -10,7 +10,8 @@ var Storage = (function () {
     favorites: 'stv_favorites',
     recents:   'stv_recents',
     settings:  'stv_settings',
-    auth:      'stv_auth'
+    auth:      'stv_auth',
+    cache:     'stv_cache_'
   };
 
   var MAX_RECENTS = 30;
@@ -138,8 +139,35 @@ var Storage = (function () {
 
   function clearAll() {
     for (var key in KEYS) {
-      if (KEYS.hasOwnProperty(key)) localStorage.removeItem(KEYS[key]);
+      if (KEYS.hasOwnProperty(key)) {
+        if (key === 'cache') {
+          // Limpa todos os itens que começam com o prefixo de cache
+          for (var i = 0; i < localStorage.length; i++) {
+            var lk = localStorage.key(i);
+            if (lk && lk.indexOf(KEYS.cache) === 0) {
+              localStorage.removeItem(lk); i--;
+            }
+          }
+        } else {
+          localStorage.removeItem(KEYS[key]);
+        }
+      }
     }
+  }
+
+  // --- Cache de dados (Persistent) ---
+  function saveCache(key, data) {
+    var ckey = KEYS.cache + key;
+    return _write(ckey, {
+      data: data,
+      timestamp: Date.now()
+    });
+  }
+
+  function getCache(key) {
+    var ckey = KEYS.cache + key;
+    var cached = _read(ckey);
+    return cached ? cached.data : null;
   }
 
   // API pública
@@ -157,6 +185,8 @@ var Storage = (function () {
     saveAuth:          saveAuth,
     getAuth:           getAuth,
     clearAuth:         clearAuth,
+    saveCache:         saveCache,
+    getCache:          getCache,
     clearAll:          clearAll
   };
 })();

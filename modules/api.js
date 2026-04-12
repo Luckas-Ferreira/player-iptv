@@ -32,23 +32,41 @@ var API = (function () {
 
   /* ─── Categorias (sem streaming — resposta pequena) ─────────────────── */
   function getLiveCategories() {
+    var cached = Storage.getCache('cats_live');
+    if (cached) _cache.liveCategories = cached;
     if (_cache.liveCategories) return Promise.resolve(_cache.liveCategories);
+
     return Auth._fetchJSON(_xtreamUrl('get_live_categories')).then(function (d) {
-      return (_cache.liveCategories = d || []);
+      var data = d || [];
+      _cache.liveCategories = data;
+      Storage.saveCache('cats_live', data);
+      return data;
     });
   }
 
   function getVodCategories() {
+    var cached = Storage.getCache('cats_vod');
+    if (cached) _cache.vodCategories = cached;
     if (_cache.vodCategories) return Promise.resolve(_cache.vodCategories);
+
     return Auth._fetchJSON(_xtreamUrl('get_vod_categories')).then(function (d) {
-      return (_cache.vodCategories = d || []);
+      var data = d || [];
+      _cache.vodCategories = data;
+      Storage.saveCache('cats_vod', data);
+      return data;
     });
   }
 
   function getSeriesCategories() {
+    var cached = Storage.getCache('cats_series');
+    if (cached) _cache.seriesCategories = cached;
     if (_cache.seriesCategories) return Promise.resolve(_cache.seriesCategories);
+
     return Auth._fetchJSON(_xtreamUrl('get_series_categories')).then(function (d) {
-      return (_cache.seriesCategories = d || []);
+      var data = d || [];
+      _cache.seriesCategories = data;
+      Storage.saveCache('cats_series', data);
+      return data;
     });
   }
 
@@ -59,9 +77,13 @@ var API = (function () {
 
   function getLiveStreams(categoryId, onChunk) {
     var key = 'live_' + (categoryId || 'all');
-    if (_cache[key] && !onChunk) return Promise.resolve(_cache[key]);
-
     var url = _xtreamUrl('get_live_streams', categoryId ? 'category_id=' + categoryId : '');
+
+    // Se tiver cache persistente, retorna ele imediatamente via onChunk se existir
+    var pcached = Storage.getCache(key);
+    if (pcached && onChunk) {
+      onChunk(pcached, true);
+    }
 
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
@@ -69,6 +91,7 @@ var API = (function () {
       }).then(function (all) {
         var streams = all.map(function (s) { s._type = 'live'; return s; });
         _cache[key] = streams;
+        Storage.saveCache(key, streams);
         return streams;
       });
     }
@@ -82,9 +105,13 @@ var API = (function () {
 
   function getVodStreams(categoryId, onChunk) {
     var key = 'vod_' + (categoryId || 'all');
-    if (_cache[key] && !onChunk) return Promise.resolve(_cache[key]);
-
     var url = _xtreamUrl('get_vod_streams', categoryId ? 'category_id=' + categoryId : '');
+
+    // Cache persistente
+    var pcached = Storage.getCache(key);
+    if (pcached && onChunk) {
+      onChunk(pcached, true);
+    }
 
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
@@ -92,6 +119,7 @@ var API = (function () {
       }).then(function (all) {
         var streams = all.map(function (s) { s._type = 'movie'; return s; });
         _cache[key] = streams;
+        Storage.saveCache(key, streams);
         return streams;
       });
     }
@@ -105,9 +133,13 @@ var API = (function () {
 
   function getSeriesList(categoryId, onChunk) {
     var key = 'series_' + (categoryId || 'all');
-    if (_cache[key] && !onChunk) return Promise.resolve(_cache[key]);
-
     var url = _xtreamUrl('get_series', categoryId ? 'category_id=' + categoryId : '');
+
+    // Cache persistente
+    var pcached = Storage.getCache(key);
+    if (pcached && onChunk) {
+      onChunk(pcached, true);
+    }
 
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
@@ -115,6 +147,7 @@ var API = (function () {
       }).then(function (all) {
         var streams = all.map(function (s) { s._type = 'series'; return s; });
         _cache[key] = streams;
+        Storage.saveCache(key, streams);
         return streams;
       });
     }
