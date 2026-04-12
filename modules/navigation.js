@@ -91,7 +91,6 @@ var Navigation = (function () {
     var inSidebar = focused.closest('.sidebar');
     var inCategory = focused.closest('.category-filter');
     var inGrid = focused.closest('.content-grid') || focused.closest('.search-results');
-    var inPreview = focused.closest('#screen-player.channel-picker-preview');
 
     /* Sidebar Constraints */
     if (inSidebar) {
@@ -110,10 +109,6 @@ var Navigation = (function () {
       if (direction === 'left') return ['.content-grid', '.search-results', '.sidebar'];
       if (direction === 'right') return ['.content-grid', '.search-results', '#screen-player']; /* Acesso ao player */
       if (direction === 'up') return ['.content-grid', '.search-results', '.category-filter', '.header-actions'];
-    }
-    /* Split-screen Preview Constraints */
-    if (inPreview) {
-      if (direction === 'left') return ['.content-grid', '.main-content'];
     }
     return null; /* Sem restrições rígidas para outros casos */
   }
@@ -159,16 +154,6 @@ var Navigation = (function () {
       }
     }
 
-    /* Fallback explícito: se tentou ir para a Direita da Grade, bateu no final, 
-       mas o player está aberto ao lado e geometry score falhou no motor da TV, força foco ao botão do player */
-    if (!bestEl && direction === 'right') {
-       if (focused.closest('.content-grid') || focused.closest('.search-results')) {
-          var expandBtn = document.getElementById('mini-player-expand');
-          if (expandBtn && _isVisible(expandBtn)) {
-             bestEl = expandBtn;
-          }
-       }
-    }
 
     if (bestEl) {
       bestEl.focus();
@@ -214,8 +199,6 @@ var Navigation = (function () {
 
   /**
    * Retorna todos os elementos focalizáveis na tela ativa.
-   * No modo split-screen (channel-picker), também inclui elementos
-   * do painel de preview do player (lado direito).
    */
   function _getFocusables() {
     var visible = [];
@@ -232,11 +215,6 @@ var Navigation = (function () {
     var mainScreen = document.getElementById('screen-' + _currentScreen) || document.body;
     _collect(mainScreen);
 
-    /* Split-screen: inclui os botões do preview do player (fechar, expandir) */
-    var previewScreen = document.querySelector('#screen-player.channel-picker-preview');
-    if (previewScreen) {
-      _collect(previewScreen);
-    }
 
     return visible;
   }
