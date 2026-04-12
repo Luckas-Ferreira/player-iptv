@@ -150,15 +150,19 @@ var Renderer = (function () {
     var allBtn = _el('button', { className: 'cat-btn active', textContent: 'Todos', tabIndex: 0 });
     allBtn.dataset.catId = '';
     frag.appendChild(allBtn);
-    categories.forEach(function (cat) {
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
       var btn = _el('button', { className: 'cat-btn', textContent: cat.category_name, tabIndex: 0 });
       btn.dataset.catId = cat.category_id;
       frag.appendChild(btn);
-    });
+    }
     container.appendChild(frag);
     container.addEventListener('click', function (e) {
       if (!e.target.classList.contains('cat-btn')) return;
-      container.querySelectorAll('.cat-btn').forEach(function (b) { b.classList.remove('active'); });
+      var allBtns = container.querySelectorAll('.cat-btn');
+      for (var j = 0; j < allBtns.length; j++) {
+        allBtns[j].classList.remove('active');
+      }
       e.target.classList.add('active');
       if (onSelect) onSelect(e.target.dataset.catId);
     });
@@ -172,34 +176,36 @@ var Renderer = (function () {
     var frag = document.createDocumentFragment();
     var labels = { live: 'Ao Vivo', movie: 'Filme', series: 'Série' };
     var cls = { live: 'type-live', movie: 'type-movie', series: 'type-series' };
-    items.forEach(function (item) {
-      var type = item._type || 'live';
-      var icon = item.stream_icon || item.cover || item.series_cover || '';
-      var row = _el('div', { className: 'search-result-item', role: 'listitem', tabIndex: 0, 'aria-label': item.name });
-      var thumb;
-      if (icon) {
-        thumb = _el('img', { className: 'search-result-thumb', alt: item.name, loading: 'lazy' });
-        _lazyLoadImg(thumb, icon);
-      } else {
-        thumb = _el('div', {
-          className: 'search-result-thumb',
-          style: 'display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg-input);border-radius:8px;'
-        });
-        thumb.textContent = type === 'live' ? '📺' : type === 'movie' ? '🎬' : '🎭';
-      }
-      row.appendChild(thumb);
-      var info = _el('div', { className: 'search-result-info' });
-      var titleEl = _el('div', { className: 'search-result-title', textContent: item.name });
-      var metaEl = _el('div', { className: 'search-result-meta', textContent: item.category_name || item.group || '' });
-      info.appendChild(titleEl); info.appendChild(metaEl);
-      row.appendChild(info);
-      row.appendChild(_el('div', { className: 'search-result-type ' + (cls[type] || 'type-live'), textContent: labels[type] || 'Live' }));
-      (function (it) {
-        row.addEventListener('click', function () { if (onPlay) onPlay(it); });
-        row.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); if (onPlay) onPlay(it); } });
-      })(item);
-      frag.appendChild(row);
-    });
+    for (var i = 0; i < items.length; i++) {
+        (function(item) {
+          var type = item._type || 'live';
+          var icon = item.stream_icon || item.cover || item.series_cover || '';
+          var row = _el('div', { className: 'search-result-item', role: 'listitem', tabIndex: 0, 'aria-label': item.name });
+          var thumb;
+          if (icon) {
+            thumb = _el('img', { className: 'search-result-thumb', alt: item.name, loading: 'lazy' });
+            _lazyLoadImg(thumb, icon);
+          } else {
+            thumb = _el('div', {
+              className: 'search-result-thumb',
+              style: 'display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg-input);border-radius:8px;'
+            });
+            thumb.textContent = type === 'live' ? '📺' : type === 'movie' ? '🎬' : '🎭';
+          }
+          row.appendChild(thumb);
+          var info = _el('div', { className: 'search-result-info' });
+          var titleEl = _el('div', { className: 'search-result-title', textContent: item.name });
+          var metaEl = _el('div', { className: 'search-result-meta', textContent: item.category_name || item.group || '' });
+          info.appendChild(titleEl); info.appendChild(metaEl);
+          row.appendChild(info);
+          row.appendChild(_el('div', { className: 'search-result-type ' + (cls[type] || 'type-live'), textContent: labels[type] || 'Live' }));
+          
+          row.addEventListener('click', function () { if (onPlay) onPlay(item); });
+          row.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); if (onPlay) onPlay(item); } });
+          
+          frag.appendChild(row);
+        })(items[i]);
+    }
     container.appendChild(frag);
   }
 
@@ -252,12 +258,13 @@ var Renderer = (function () {
   function _el(tag, attrs) {
     var el = document.createElement(tag);
     if (attrs) {
-      Object.keys(attrs).forEach(function (k) {
+      for (var k in attrs) {
+        if (!attrs.hasOwnProperty(k)) continue;
         if (k === 'textContent') el.textContent = attrs[k];
         else if (k === 'className') el.className = attrs[k];
         else if (k === 'style') el.style.cssText = attrs[k];
         else el.setAttribute(k, attrs[k]);
-      });
+      }
     }
     return el;
   }
@@ -267,8 +274,9 @@ var Renderer = (function () {
     imgEl.setAttribute('data-src', src);
     if ('IntersectionObserver' in window) {
       var obs = new IntersectionObserver(function (entries, o) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i];
+          if (!entry.isIntersecting) continue;
           var img = entry.target;
           img.src = img.getAttribute('data-src') || '';
           img.onerror = function () {
@@ -276,7 +284,7 @@ var Renderer = (function () {
             if (parent) parent.replaceChild(createPlaceholder('live', img.alt || '', false), img);
           };
           o.unobserve(img);
-        });
+        }
       }, { rootMargin: '400px 0px' });
       obs.observe(imgEl);
     } else {

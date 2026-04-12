@@ -184,10 +184,11 @@ var App = (function () {
       });
     }
 
-    [document.getElementById('btn-logout'), document.getElementById('settings-logout')]
-      .forEach(function (btn) {
-        if (btn) btn.addEventListener('click', function () { Storage.clearAuth(); _handleLogout(); });
-      });
+    var exitBtns = [document.getElementById('btn-logout'), document.getElementById('settings-logout')];
+    for (var j = 0; j < exitBtns.length; j++) {
+      var btn = exitBtns[j];
+      if (btn) btn.addEventListener('click', function () { Storage.clearAuth(); _handleLogout(); });
+    }
 
   }
 
@@ -196,10 +197,12 @@ var App = (function () {
     _state.activeTab = tabName;
     _state.activeCategory = '';
 
-    document.querySelectorAll('.menu-item').forEach(function (m) {
+    var menuItems = document.querySelectorAll('.menu-item');
+    for (var i = 0; i < menuItems.length; i++) {
+      var m = menuItems[i];
       if (m.dataset.tab === tabName) m.classList.add('active');
       else m.classList.remove('active');
-    });
+    }
 
     var grid = document.getElementById('content-grid');
     var header = document.querySelector('.content-header');
@@ -208,7 +211,11 @@ var App = (function () {
     var loading = document.getElementById('content-loading');
     var empty = document.getElementById('content-empty');
 
-    [spanel, stpanel].forEach(function (p) { if (p) p.classList.add('hidden'); });
+    var panels = [spanel, stpanel];
+    for (var k = 0; k < panels.length; k++) {
+      var p = panels[k];
+      if (p) p.classList.add('hidden');
+    }
 
     if (tabName === 'settings') {
       if (grid) grid.style.display = 'none';
@@ -333,26 +340,32 @@ var App = (function () {
     container.innerHTML = '';
     if (!categories || !categories.length) return;
 
-    categories.forEach(function (cat, idx) {
-      var btn = document.createElement('button');
-      btn.className = 'cat-btn' + (idx === 0 ? ' active' : '');
-      btn.textContent = cat.category_name;
-      btn.dataset.catId = cat.category_id;
-      btn.tabIndex = 0;
+    for (var i = 0; i < categories.length; i++) {
+      (function(idx) {
+        var cat = categories[idx];
+        var btn = document.createElement('button');
+        btn.className = 'cat-btn' + (idx === 0 ? ' active' : '');
+        btn.textContent = cat.category_name;
+        btn.dataset.catId = cat.category_id;
+        btn.tabIndex = 0;
 
-      btn.addEventListener('click', function () {
-        if (_state.activeCategory === cat.category_id) return;
-        _state.activeCategory = cat.category_id;
-        container.querySelectorAll('.cat-btn').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        Renderer.setLoading(true);
-        _startStreamingLoad(getStreams, cat.category_id);
-      });
-      btn.addEventListener('keydown', function (e) {
-        if (e.keyCode === 13) { e.preventDefault(); btn.click(); }
-      });
-      container.appendChild(btn);
-    });
+        btn.addEventListener('click', function () {
+          if (_state.activeCategory === cat.category_id) return;
+          _state.activeCategory = cat.category_id;
+          var allBtns = container.querySelectorAll('.cat-btn');
+          for (var j = 0; j < allBtns.length; j++) {
+            allBtns[j].classList.remove('active');
+          }
+          btn.classList.add('active');
+          Renderer.setLoading(true);
+          _startStreamingLoad(getStreams, cat.category_id);
+        });
+        btn.addEventListener('keydown', function (e) {
+          if (e.keyCode === 13) { e.preventDefault(); btn.click(); }
+        });
+        container.appendChild(btn);
+      })(i);
+    }
   }
 
   /* ─── M3U ─────────────────────────────────────────────────────────────── */
@@ -362,10 +375,11 @@ var App = (function () {
       var filtered = tf ? all.filter(function (i) { return i._type === tf; }) : all;
 
       var groups = {};
-      filtered.forEach(function (i) {
-        var g = i.category_name || i.group || 'Outros';
+      for (var i = 0; i < filtered.length; i++) {
+        var item = filtered[i];
+        var g = item.category_name || item.group || 'Outros';
         if (!groups[g]) groups[g] = { category_id: g, category_name: g };
-      });
+      }
       var cats = Object.keys(groups).map(function (k) { return groups[k]; });
 
       _renderCategoriesLazy(cats, function (catId) {
@@ -523,17 +537,23 @@ var App = (function () {
       seasonsRow.innerHTML = ''; episodesGrid.innerHTML = '';
       var snums = Object.keys(info.episodes || {});
       if (!snums.length) return;
-      snums.forEach(function (sNum, idx) {
-        var btn = document.createElement('button');
-        btn.className = 'season-btn' + (idx === 0 ? ' active' : '');
-        btn.textContent = 'Temporada ' + sNum;
-        btn.addEventListener('click', function () {
-          document.querySelectorAll('.season-btn').forEach(function (b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          _renderXtreamEps(info.episodes[sNum], series, episodesGrid);
-        });
-        seasonsRow.appendChild(btn);
-      });
+      for (var i = 0; i < snums.length; i++) {
+        (function(idx) {
+          var sNum = snums[idx];
+          var btn = document.createElement('button');
+          btn.className = 'season-btn' + (idx === 0 ? ' active' : '');
+          btn.textContent = 'Temporada ' + sNum;
+          btn.addEventListener('click', function () {
+            var allBtns = document.querySelectorAll('.season-btn');
+            for (var j = 0; j < allBtns.length; j++) {
+              allBtns[j].classList.remove('active');
+            }
+            btn.classList.add('active');
+            _renderXtreamEps(info.episodes[sNum], series, episodesGrid);
+          });
+          seasonsRow.appendChild(btn);
+        })(i);
+      }
       _renderXtreamEps(info.episodes[snums[0]], series, episodesGrid);
       var playBtn = document.getElementById('detail-play');
       if (playBtn && info.episodes[snums[0]] && info.episodes[snums[0]][0]) {
@@ -552,7 +572,9 @@ var App = (function () {
   function _renderXtreamEps(episodes, series, container) {
     container.innerHTML = '';
     if (!episodes) return;
-    episodes.forEach(function (ep) { container.appendChild(_createEpisodeCard(ep, series)); });
+    for (var i = 0; i < episodes.length; i++) {
+      container.appendChild(_createEpisodeCard(episodes[i], series));
+    }
   }
 
   function _createEpisodeCard(ep, series) {
@@ -675,11 +697,17 @@ var App = (function () {
      TELAS / MINI-PLAYER
   ══════════════════════════════════════ */
   function _showScreen(name) {
-    document.querySelectorAll('.screen').forEach(function (s) {
-      s.classList.remove('active'); s.classList.add('hidden');
-    });
+    console.log('[App] _showScreen:', name);
+    var screens = document.querySelectorAll('.screen');
+    for (var i = 0; i < screens.length; i++) {
+      screens[i].classList.remove('active');
+      screens[i].classList.add('hidden');
+    }
     var t = document.getElementById('screen-' + name);
-    if (t) { t.classList.remove('hidden'); t.classList.add('active'); }
+    if (t) { 
+      t.classList.remove('hidden'); 
+      t.classList.add('active'); 
+    }
     Navigation.setScreen(name);
   }
 
