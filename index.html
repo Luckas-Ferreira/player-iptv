@@ -120,16 +120,6 @@
           </span>
           <span class="menu-label">Séries</span>
         </li>
-        <li class="menu-item" data-tab="search" role="menuitem" tabindex="0" aria-label="Busca">
-          <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </span>
-          <span class="menu-label">Busca</span>
-        </li>
         <li class="menu-item" data-tab="favorites" role="menuitem" tabindex="0" aria-label="Favoritos">
           <span class="menu-icon" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -179,10 +169,6 @@
       <header class="content-header">
         <h2 id="content-title" class="content-title">TV ao Vivo</h2>
         <div class="header-actions">
-          <div class="header-search-inline">
-            <input id="inline-search" type="search" placeholder="Buscar..." class="inline-search-input"
-              aria-label="Busca rápida">
-          </div>
           <div id="category-filter" class="category-filter" role="group" aria-label="Filtrar por categoria"></div>
         </div>
       </header>
@@ -202,26 +188,6 @@
         <p class="empty-text">Nenhum item encontrado</p>
       </div>
 
-      <!-- ===================== ABA: BUSCA ===================== -->
-      <div id="tab-search" class="tab-panel hidden" role="search" aria-label="Busca">
-        <div class="search-container">
-          <div class="search-input-wrapper">
-            <span class="search-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-            </span>
-            <input id="search-input" type="search" placeholder="Digite para buscar canais, filmes, séries..."
-              class="search-input" aria-label="Campo de busca" autocomplete="off">
-          </div>
-          <div id="search-results" class="search-results" role="list" aria-label="Resultados da busca"></div>
-          <div id="search-empty" class="search-empty hidden">
-            <p>Digite algo para buscar...</p>
-          </div>
-        </div>
-      </div>
 
       <!-- ===================== ABA: CONFIGURAÇÕES ===================== -->
       <div id="tab-settings" class="tab-panel hidden" role="region" aria-label="Configurações">
@@ -387,7 +353,6 @@
   <script src="modules/auth.js"></script>
   <script src="modules/api.js"></script>
   <script src="modules/renderer.js"></script>
-  <script src="modules/search.js"></script>
   <script src="modules/player.js"></script>
   <script src="modules/navigation.js"></script>
   <script src="app.js"></script>

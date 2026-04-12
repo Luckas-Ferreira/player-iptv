@@ -155,7 +155,7 @@ var App = (function () {
     var mc = document.getElementById('main-content');
     if (mc) {
       mc.addEventListener('scroll', function () {
-        if (_state.activeTab === 'settings' || _state.activeTab === 'search') return;
+        if (_state.activeTab === 'settings') return;
         if (mc.scrollTop + mc.clientHeight >= mc.scrollHeight - 300) _loadMoreItems();
       });
     }
@@ -165,9 +165,6 @@ var App = (function () {
         if (btn) btn.addEventListener('click', function () { Storage.clearAuth(); _handleLogout(); });
       });
 
-    Search.initInlineSearch(function (results) {
-      if (results === null) _loadCurrentTab(); else _renderGrid(results);
-    });
   }
 
   function _activateTab(tabName) {
@@ -189,15 +186,6 @@ var App = (function () {
 
     [spanel, stpanel].forEach(function (p) { if (p) p.classList.add('hidden'); });
 
-    if (tabName === 'search') {
-      if (grid) grid.style.display = 'none';
-      if (header) header.style.display = 'none';
-      if (loading) loading.classList.add('hidden');
-      if (empty) empty.classList.add('hidden');
-      if (spanel) spanel.classList.remove('hidden');
-      Search.initSearchTab(_playItem);
-      return;
-    }
     if (tabName === 'settings') {
       if (grid) grid.style.display = 'none';
       if (header) header.style.display = 'none';
@@ -219,19 +207,8 @@ var App = (function () {
     _loadCurrentTab();
   }
 
-  var _globalSearchWarmed = false;
-  function _warmupGlobalSearch() {
-    if (_globalSearchWarmed) return;
-    _globalSearchWarmed = true;
-    if (_state.mode === 'm3u') {
-      API.loadM3U().then(function (r) { Search.setGlobalData(r); }).catch(function () { });
-    } else {
-      Search.setGlobalData([]);
-    }
-  }
 
   function _loadCurrentTab() {
-    _warmupGlobalSearch();
     var tab = _state.activeTab;
     if (tab === 'favorites') { _renderFavorites(); return; }
     if (tab === 'recents') { _renderRecents(); return; }
@@ -306,14 +283,11 @@ var App = (function () {
         }
       }
 
-      /* Alimenta busca progressivamente */
-      if (Search.appendTabData) Search.appendTabData(chunk);
 
     }).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
       _state.allItems = allItems || [];
-      Search.setTabData(_state.allItems);
 
       if (!firstChunkReceived) {
         /* Nenhum chunk recebido via streaming (proxy bufferizou tudo) */
@@ -380,7 +354,6 @@ var App = (function () {
         ? filtered.filter(function (i) { return (i.category_name || i.group) === cats[0].category_id; })
         : filtered;
 
-      Search.setTabData(filtered);
       Renderer.setLoading(false);
       _state.renderedCount = 0;
       _loadMoreItems();
@@ -645,7 +618,6 @@ var App = (function () {
     if (cr) cr.addEventListener('click', function () { Storage.clearRecents(); Renderer.showToast('Histórico limpo', 'info'); });
     if (ca) ca.addEventListener('click', function () {
       Storage.clearAll(); API.clearCache();
-      Search.setTabData([]); Search.setGlobalData([]);
       Renderer.showToast('Todos os dados removidos', 'info');
     });
   }
@@ -715,7 +687,6 @@ var App = (function () {
 
   function _handleLogout() {
     Player.stop(); Auth.logout(); API.clearCache();
-    Search.setTabData([]); Search.setGlobalData([]);
     Navigation.clearHistory(); Navigation.pushHistory('login');
     _showScreen('login'); Navigation.setScreen('login'); Navigation.focusFirst('login');
     Renderer.showToast('Desconectado com sucesso', 'info');

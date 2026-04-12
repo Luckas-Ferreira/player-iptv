@@ -90,7 +90,7 @@ var Navigation = (function () {
     if (!focused) return null;
     var inSidebar = focused.closest('.sidebar');
     var inCategory = focused.closest('.category-filter');
-    var inGrid = focused.closest('.content-grid') || focused.closest('.search-results');
+    var inGrid = focused.closest('.content-grid');
 
     /* Sidebar Constraints */
     if (inSidebar) {
@@ -99,16 +99,16 @@ var Navigation = (function () {
     }
     /* Category Filter Constraints */
     if (inCategory) {
-      if (direction === 'left') return ['.category-filter', '.header-search-inline', '.sidebar'];
+      if (direction === 'left') return ['.category-filter', '.sidebar'];
       if (direction === 'right') return ['.category-filter']; /* Proíbe cair pra grade ao ir pra direita */
-      if (direction === 'down') return ['.content-grid', '.search-results', '.content-empty'];
+      if (direction === 'down') return ['.content-grid', '.content-empty'];
       if (direction === 'up') return []; /* Topo da tela */
     }
     /* Main Grid Constraints */
     if (inGrid) {
-      if (direction === 'left') return ['.content-grid', '.search-results', '.sidebar'];
+      if (direction === 'left') return ['.content-grid', '.sidebar'];
       if (direction === 'right') return ['.content-grid', '.search-results', '#screen-player']; /* Acesso ao player */
-      if (direction === 'up') return ['.content-grid', '.search-results', '.category-filter', '.header-actions'];
+      if (direction === 'up') return ['.content-grid', '.category-filter', '.header-actions'];
     }
     return null; /* Sem restrições rígidas para outros casos */
   }
