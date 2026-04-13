@@ -24,21 +24,7 @@ var API = (function () {
   function _getEffectiveServer(typeOrAction) {
     var c = Auth.getCredentials();
     if (!c || !c.server) return '';
-    var server = c.server;
-
-    /* Ações ou tipos que correspondem a VOD (Filmes) ou Séries */
-    var vodTargets = [
-      'get_vod_categories', 'get_vod_streams', 'get_vod_info',
-      'get_series_categories', 'get_series', 'get_series_info',
-      'movie', 'series'
-    ];
-
-    /* Se o servidor for da rede stream4k e o alvo for VOD/Series, usa o IP direto p/ bypass Cloudflare */
-    var isStream4k = server.indexOf('stream') !== -1 && server.indexOf('4k') !== -1;
-    if (isStream4k && vodTargets.indexOf(typeOrAction) !== -1) {
-      return 'http://191.96.78.246';
-    }
-    return server;
+    return c.server;
   }
 
   function _xtreamUrl(action, extra) {
@@ -189,21 +175,25 @@ var API = (function () {
   }
 
   /* ─── URLs de stream ─────────────────────────────────────────────────── */
-  function getLiveStreamUrl(streamId, ext) {
+  function getLiveStreamUrl(streamId, ext, proxied, proxyIdx) {
     var c = Auth.getCredentials(); if (!c) return '';
-    return c.server + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
+    var base = _getEffectiveServer('live');
+    var url = base + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
+    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
 
-  function getVodStreamUrl(streamId, ext) {
+  function getVodStreamUrl(streamId, ext, proxied, proxyIdx) {
     var c = Auth.getCredentials(); if (!c) return '';
     var base = _getEffectiveServer('movie');
-    return base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
+    var url = base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
+    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
 
-  function getEpisodeStreamUrl(streamId, ext) {
+  function getEpisodeStreamUrl(streamId, ext, proxied, proxyIdx) {
     var c = Auth.getCredentials(); if (!c) return '';
     var base = _getEffectiveServer('series');
-    return base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
+    var url = base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
+    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
 
   /* ─── M3U ────────────────────────────────────────────────────────────── */

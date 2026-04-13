@@ -21,13 +21,17 @@ var Player = (function () {
   /* ── Estado ───────────────────────────────────────────────── */
   var _video       = null;
   var _overlay     = null;
+  var _container   = null;
   var _hideTimer   = null;
   var _bufTimer    = null;
   var _currentItem = null;
   var _isPlaying   = false;
+  var _isStopping  = false;
   var _mpegts      = null;   // instância mpegts.js
   var _hls         = null;   // instância hls.js
-  var _attempt     = 0;      // 0 = mpegts, 1 = hls, 2 = nativo
+  var _attempt     = 0;      // 0 = direto, 1 = mpegts, 2 = hls
+  var _proxyAttempt = false;  // se estamos tentando via proxy CORS
+  var _proxyIdx     = 0;      // index do proxy atual sendo tentado
 
   /* ══════════════════════════════════════
      INICIALIZAÇÃO
@@ -43,6 +47,7 @@ var Player = (function () {
     _video.addEventListener('ended',      _onEnd);
     _video.addEventListener('error',      _onNativeError);
     _video.addEventListener('timeupdate', _onTimeUpdate);
+    _video.addEventListener('loadedmetadata', _onMetadataLoaded);
 
     _bindControls();
 
@@ -58,6 +63,8 @@ var Player = (function () {
   function play(item) {
     _currentItem = item;
     _attempt     = 0;
+    _proxyAttempt = false;
+    _proxyIdx     = 0;
     _isPlaying   = false;
 
     _destroyAll();
@@ -123,6 +130,8 @@ var Player = (function () {
   function _tryLive(tsUrl, m3u8Url) {
     /* Tentativa 0: mpegts.js com stream .ts direto */
     if (_attempt === 0) {
+      /* Detecção de domínios bloqueados: se for streams4k e for a 1ª vez, já pula pro proxy se preferir, 
+         mas vamos manter a tentativa direta rápida (8s via watchdog) primeiro. */
       _showLoading('Conectando ao canal...');
       _loadScript(MPEGTS_CDN, function () {
         if (window.mpegts && mpegts.isSupported()) {
@@ -159,9 +168,27 @@ var Player = (function () {
 
     /* Tentativa 2: playback nativo (Safari HLS) */
     if (_attempt === 2) {
-      _showLoading('Tentando reprodução nativa...');
+      _showLoading('Tentando reprodução nativa' + (_proxyAttempt ? ' (Proxy)' : '') + '...');
       _playDirect(m3u8Url);
-      _startBufWatchdog(null); /* sem mais fallback */
+      
+      /* Watchdog final: se falhar nativo e não tentamos proxy ainda, tenta tudo de novo com proxy */
+      _startBufWatchdog(function () {
+        if (!_proxyAttempt) {
+          console.warn('[Player] Falha geral no direto, iniciando modo Proxy...');
+          _proxyAttempt = true;
+          _proxyIdx = 0;
+          _attempt = 0;
+          _startLive();
+        } else if (_proxyIdx < 2) {
+          /* Tenta o próximo proxy (allorigins costuma ser melhor p/ ORB) */
+          _proxyIdx++;
+          console.warn('[Player] Proxy ' + (_proxyIdx - 1) + ' falhou, tentando Proxy ' + _proxyIdx + '...');
+          _attempt = 0;
+          _startLive();
+        } else {
+          _showError('Canal offline ou bloqueado (todos os proxies falharam).');
+        }
+      });
       return;
     }
 
@@ -179,7 +206,8 @@ var Player = (function () {
       type:   'mpegts',
       isLive: true,
       url:    tsUrl,
-      cors:   true
+      cors:   true,
+      referrerPolicy: 'no-referrer'
     }, {
       enableWorker:              false,  /* compatibilidade TVs antigas */
       liveBufferLatencyChasing:  true,
@@ -229,7 +257,16 @@ var Player = (function () {
       startFragPrefetch:      true,
       manifestLoadingTimeOut: 15000,
       levelLoadingTimeOut:    15000,
-      fragLoadingTimeOut:     20000
+      fragLoadingTimeOut:     20000,
+      /* STEALTH: remove headers que a cloudflare usa p/ rastrear/bloquear browsers */
+      xhrSetup: function(xhr, url) {
+        xhr.withCredentials = false;
+        try {
+          if (xhr.setRequestHeader) {
+            /* Browsers bloqueiam mudar Referer/Origin via JS, mas no-referrer-policy ajuda */
+          }
+        } catch(e) {}
+      }
     });
 
     _hls = hls;
@@ -262,10 +299,13 @@ var Player = (function () {
      Reprodução direta (VOD / native HLS)
   ══════════════════════════════════════ */
   function _playDirect(url) {
-    _video.src = url;
-    _video.load();
-    var p = _video.play();
-    if (p && p.catch) p.catch(function () {});
+    if (_video) {
+        _video.setAttribute('referrerpolicy', 'no-referrer');
+        _video.src = url;
+        _video.load();
+        var p = _video.play();
+        if (p && p.catch) p.catch(function () {});
+    }
   }
 
   /* ══════════════════════════════════════
@@ -308,12 +348,16 @@ var Player = (function () {
   function _startBufWatchdog(onTimeout) {
     _clearBufWatchdog();
     if (!onTimeout) return;
+    
+    /* Se for a primeira tentativa (direta), o timeout é mais curto (8s) para virar logo pra proxy */
+    var time = _proxyAttempt ? 20000 : 8000;
+
     _bufTimer = setTimeout(function () {
       if (!_isPlaying) {
-        console.warn('[Player] Watchdog: buffering timeout, próxima tentativa');
+        console.warn('[Player] Watchdog: buffering timeout (' + time + 'ms), próxima tentativa');
         onTimeout();
       }
-    }, 20000);
+    }, time);
   }
 
   function _clearBufWatchdog() {
@@ -324,21 +368,19 @@ var Player = (function () {
      Helpers de URL
   ══════════════════════════════════════ */
   function _getLiveUrl(ext) {
-    var creds = Auth.getCredentials();
-    if (!creds || !_currentItem) return '';
-    return creds.server + '/live/' + creds.username + '/' + creds.password + '/' + _currentItem.stream_id + '.' + ext;
+    if (!_currentItem) return '';
+    return API.getLiveStreamUrl(_currentItem.stream_id, ext, _proxyAttempt, _proxyIdx);
   }
 
-  function _getStreamUrl(item) {
+  function _getStreamUrl(item, useProxy) {
     if (item.url) return item.url;  /* M3U */
-    var creds = Auth.getCredentials();
-    if (!creds || creds.type !== 'xtream') return '';
     var type = item._type || 'live';
+    var p = useProxy || _proxyAttempt;
     if (type === 'movie') {
-      return creds.server + '/movie/' + creds.username + '/' + creds.password + '/' + (item.stream_id || item.vod_id) + '.' + (item.container_extension || 'mp4');
+      return API.getVodStreamUrl(item.stream_id || item.vod_id, item.container_extension, p, _proxyIdx);
     }
     if (type === 'series' && item._episodeId) {
-      return creds.server + '/series/' + creds.username + '/' + creds.password + '/' + item._episodeId + '.' + (item._episodeExt || 'mkv');
+      return API.getEpisodeStreamUrl(item._episodeId, item._episodeExt, p, _proxyIdx);
     }
     return '';
   }
@@ -418,6 +460,23 @@ var Player = (function () {
   /* ══════════════════════════════════════
      Eventos do vídeo
   ══════════════════════════════════════ */
+  function _onMetadataLoaded() {
+    /* Detecção de vídeo de abuso da Cloudflare: geralmente o vídeo de aviso tem exatos 35s ou 30s. 
+       Se for um filme (que deveria ter 1h+) e carregar com 35s, é o bloqueio. */
+    var dur = _video.duration;
+    var isCloudflareAbuse = (dur > 0 && dur < 60 && _currentItem && (_currentItem._type === 'movie' || _currentItem._type === 'series'));
+    
+    if (isCloudflareAbuse) {
+      console.warn('[Player] Detetado redirecionamento Cloudflare (duration: ' + dur + '), tentando Proxy...');
+      _onVODError();
+      return;
+    }
+
+    _showLoading(false);
+    _isPlaying = true;
+    _clearBufWatchdog();
+  }
+
   function _onPlaying() {
     _isPlaying = true;
     _clearBufWatchdog();
@@ -452,7 +511,12 @@ var Player = (function () {
     var msgs = { 1: 'Carregamento interrompido', 2: 'Erro de rede', 3: 'Decode error', 4: 'Formato não suportado' };
     console.warn('[Player] Native video error code:', code);
 
-    /* Se estava tentando nativa (tentativa 2) → sem mais fallback */
+    /* Se estava tentando nativa (tentativa 2) ou VOD → tenta proxy se disponível */
+    if (_currentItem && (_currentItem._type === 'movie' || _currentItem._type === 'series')) {
+      _onVODError();
+      return;
+    }
+
     if (_attempt >= 2 || _isPlaying) {
       _showError(msgs[code] || 'Erro ao reproduzir. Tente outro canal.');
       return;
@@ -462,6 +526,23 @@ var Player = (function () {
     var tsUrl   = _getLiveUrl('ts');
     var m3u8Url = _getLiveUrl('m3u8');
     _tryLive(tsUrl, m3u8Url);
+  }
+
+  function _onVODError() {
+    if (!_proxyAttempt) {
+      console.warn('[Player] Erro no VOD direto, tentando via Proxy...');
+      _proxyAttempt = true;
+      _proxyIdx = 0;
+      var url = _getStreamUrl(_currentItem, true);
+      if (url) _playDirect(url);
+    } else if (_proxyIdx < 2) {
+       _proxyIdx++;
+       console.warn('[Player] Proxy VOD ' + (_proxyIdx - 1) + ' falhou, tentando Proxy ' + _proxyIdx + '...');
+       var url = _getStreamUrl(_currentItem, true);
+       if (url) _playDirect(url);
+    } else {
+      _showError('Não foi possível carregar o vídeo (mesmo via Proxy).');
+    }
   }
 
   function _onTimeUpdate() {

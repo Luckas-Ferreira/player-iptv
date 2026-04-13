@@ -15,9 +15,9 @@ var Auth = (function () {
   /* ─── Proxies CORS (HTTPS → HTTP) ──────────────────────────────────────
      Tentados em ordem; se um falhar, passa pro próximo automaticamente.   */
   var _PROXIES = [
+    'https://api.codetabs.com/v1/proxy?quest=',
     'https://corsproxy.io/?',
     'https://api.allorigins.win/raw?url=',
-    'https://api.codetabs.com/v1/proxy?quest=',
     'https://thingproxy.freeboard.io/fetch/'
   ];
 
@@ -255,8 +255,12 @@ var Auth = (function () {
   function getCredentials() { return _credentials; }
   function logout() { _credentials = null; Storage.clearAuth(); }
 
-  function getProxiedUrl(url) {
-    return _needsProxy(url) ? _PROXIES[0] + encodeURIComponent(url) : url;
+  function getProxiedUrl(url, force, proxyIdx) {
+    if (force || _needsProxy(url)) {
+      var idx = (proxyIdx !== undefined && proxyIdx < _PROXIES.length) ? proxyIdx : 0;
+      return _PROXIES[idx] + encodeURIComponent(url);
+    }
+    return url;
   }
 
   return {
