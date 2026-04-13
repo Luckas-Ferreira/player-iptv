@@ -156,18 +156,13 @@ var Storage = (function () {
   }
 
   // --- Cache de dados (Persistent) ---
+  // DESATIVADO: Cache causava erros de "Nenhum item encontrado" em TVs com pouco storage
   function saveCache(key, data) {
-    var ckey = KEYS.cache + key;
-    return _write(ckey, {
-      data: data,
-      timestamp: Date.now()
-    });
+    return true; // Mentimos que salvou para não quebrar chamadas antigas
   }
 
   function getCache(key) {
-    var ckey = KEYS.cache + key;
-    var cached = _read(ckey);
-    return cached ? cached.data : null;
+    return null; // Sempre retorna null para forçar carregamento da rede
   }
 
   // API pública

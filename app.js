@@ -210,6 +210,9 @@ var App = (function () {
     if (grid) grid.innerHTML = '';
     if (catFilter) catFilter.innerHTML = '';
 
+    /* Limpa cache em memória para liberar RAM, já que o usuário pediu para carregar sempre */
+    if (API && API.clearCache) API.clearCache();
+
     var header = document.querySelector('.content-header');
     var spanel = document.getElementById('tab-search');
     var stpanel = document.getElementById('tab-settings');
@@ -292,20 +295,10 @@ var App = (function () {
 
     var firstChunkReceived = false;
     Renderer.setEmpty(false); // Garante que começa limpo
-    var isShowingCache = false;
 
-    getStreams(categoryId, function (chunk, isCached) {
+    getStreams(categoryId, function (chunk) {
       /* Descarta chunks de requisições antigas */
       if (token !== _state.loadToken) return;
-
-      /* Se for a primeira vez recebendo dados reais (não cache) e estávamos mostrando cache, limpa */
-      if (!isCached && isShowingCache) {
-        if (grid) grid.innerHTML = '';
-        _state.allItems = [];
-        _state.renderedCount = 0;
-        isShowingCache = false;
-        firstChunkReceived = false; // Permite mostrar o spinner/grade de novo se for rápido
-      }
 
       /* Filtra itens sem nome (evita bloco "Sem nome") */
       var filteredChunk = [];

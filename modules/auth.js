@@ -83,9 +83,8 @@ var Auth = (function () {
   function _doStreamXHR(proxied, original, proxyIdx, onChunk) {
     return new Promise(function (resolve, reject) {
       var x = new XMLHttpRequest();
-      var buf = '';        // buffer acumulado entre eventos onprogress
-      var pos = 0;         // posição já processada no buffer
-      var all = [];        // todos os itens recebidos
+      var pos = 0;         // posição já processada no responseText
+      var all = [];        // todos os itens recebidos (opcional, mas mantido para resolve)
 
       x.open('GET', proxied, true);
       x.timeout = 60000;
@@ -93,26 +92,27 @@ var Auth = (function () {
       /* ── Recebe dados parciais ────────────────────────────────────────── */
       x.onprogress = function () {
         try {
-          var text = x.responseText;
+          var text = '';
+          try { text = x.responseText; } catch(e) { return; }
+          
           if (!text || text.length <= pos) return;
-          buf = text;
-          var result = _parseStreamBuf(buf, pos);
+          
+          var result = _parseStreamBuf(text, pos);
           if (result.items.length > 0) {
             all = all.concat(result.items);
             try { onChunk(result.items); } catch (e) { }
           }
           pos = result.nextPos;
         } catch (e) {
-          /* Alguns browsers antigos jogam erro ao acessar responseText antes do fim */
-          console.warn('[Auth] Falha no onprogress access:', e.message);
+          console.warn('[Auth] Erro no streaming:', e.message);
         }
       };
 
       /* ── Fim da resposta ─────────────────────────────────────────────── */
       x.onload = function () {
         if (x.status >= 200 && x.status < 300) {
-          /* Processa qualquer resto que onprogress não pegou */
           var text = x.responseText;
+          /* Processa qualquer resto que onprogress não pegou */
           if (text.length > pos) {
             var result = _parseStreamBuf(text, pos);
             if (result.items.length > 0) {
@@ -120,14 +120,14 @@ var Auth = (function () {
               try { onChunk(result.items); } catch (e) { }
             }
           }
-          /* Se não chegou nada via stream, tenta JSON.parse completo */
+          /* Se não chegou nada via streaming (ex: servidor não suporta ou resposta pequena), tenta parse completo */
           if (all.length === 0) {
             try { all = JSON.parse(text) || []; } catch (e) { }
+            if (all && !Array.isArray(all)) all = [all]; // Garante array
             if (all.length > 0) try { onChunk(all); } catch (e) { }
           }
           resolve(all);
         } else {
-          /* Tenta próximo proxy */
           _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('HTTP ' + x.status));
         }
       };
