@@ -1562,6 +1562,84 @@ select {
   color: #fff;
 }
 
+/* --- Card de Próximo Vídeo --- */
+.player-next-card {
+  position: absolute;
+  bottom: 120px;
+  right: 40px;
+  width: 320px;
+  background: rgba(18, 18, 18, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 24px;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(20px);
+  opacity: 0;
+  z-index: 100;
+}
+
+.player-next-card:not(.hidden) {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.next-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.next-card-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.next-card-title {
+  font-size: 18px;
+  margin: 0;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.btn-skip-autoplay {
+  position: relative;
+  overflow: hidden;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 0 20px;
+}
+
+.btn-skip-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--skip-progress, 0%);
+  background: var(--accent);
+  opacity: 0.6;
+  transition: width 0.1s linear;
+}
+
+.btn-skip-text {
+  position: relative;
+  z-index: 1;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
 .player-big-btn {
   width: 72px;
   height: 72px;

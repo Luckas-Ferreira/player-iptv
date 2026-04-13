@@ -23,7 +23,8 @@ var App = (function () {
     miniActive: false,
     miniItem: null,
     loadToken: 0,
-    isLoggingIn: false
+    isLoggingIn: false,
+    currentEpisodes: []
   };
 
   /* ══════════════════════════════════════
@@ -525,6 +526,32 @@ var App = (function () {
     _showScreen('player');
     Player.play(item);
     _state.miniItem = item;
+
+    /* Configura o próximo vídeo para o card de skip */
+    var next = _findNextItem(item);
+    if (next) {
+      Player.setNextItem(next, function() {
+        _openPlayer(next);
+      });
+    } else {
+      Player.setNextItem(null);
+    }
+  }
+
+  function _findNextItem(item) {
+    if (!item) return null;
+    var list = (item._type === 'series') ? _state.currentEpisodes : _state.allItems;
+    if (!list || !list.length) return null;
+
+    var id = item._episodeId || item.stream_id || item.vod_id || item.series_id;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      var itId = it._episodeId || it.stream_id || it.vod_id || it.series_id;
+      if (itId === id && i < list.length - 1) {
+        return list[i + 1];
+      }
+    }
+    return null;
   }
 
   function _openDetail(item) {
@@ -594,6 +621,23 @@ var App = (function () {
         })(i);
       }
       _renderXtreamEps(info.episodes[snums[0]], series, episodesGrid);
+      
+      /* Salva os episódios de todas as temporadas para navegação de "Próximo" */
+      var allEps = [];
+      for (var k = 0; k < snums.length; k++) {
+        var seasonEps = info.episodes[snums[k]] || [];
+        for (var m = 0; m < seasonEps.length; m++) {
+          var ep = seasonEps[m];
+          allEps.push(Object.assign({}, series, {
+            _type: 'series',
+            _episodeId: ep.id || ep.stream_id,
+            _episodeExt: ep.container_extension || 'mkv',
+            name: series.name + ' – S' + (ep.season || snums[k]) + ' E' + (ep.episode_num || (m+1))
+          }));
+        }
+      }
+      _state.currentEpisodes = allEps;
+
       var playBtn = document.getElementById('detail-play');
       if (playBtn && info.episodes[snums[0]] && info.episodes[snums[0]][0]) {
         var ep0 = info.episodes[snums[0]][0];

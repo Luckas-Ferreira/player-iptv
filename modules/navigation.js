@@ -55,6 +55,16 @@ var Navigation = (function () {
         Player.togglePlayPause();
         return;
       }
+      if (_matchKey(code, KEYS.LEFT)) {
+        e.preventDefault();
+        Player.seek(-30);
+        return;
+      }
+      if (_matchKey(code, KEYS.RIGHT)) {
+        e.preventDefault();
+        Player.seek(30);
+        return;
+      }
     }
 
     if (_matchKey(code, KEYS.UP)) { e.preventDefault(); _moveFocus('up'); return; }

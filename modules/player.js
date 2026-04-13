@@ -39,6 +39,17 @@ var Player = (function () {
   /* ── Estado VOD ───────────────────────────────────────────── */
   var _vodUrls = [];  /* lista de URLs a tentar, em ordem */
   var _vodUrlIdx = 0;  /* índice atual */
+  var _nextItem = null;
+  var _nextCallback = null;
+  var _nextCardShown = false;
+  var _skipStartTime = 0;
+  var _skipTimer = null;
+  var _skipInterval = null;
+
+  /* ── Buffered Seek ────────────────────────────────────────── */
+  var _isSeeking = false;
+  var _seekValue = 0;
+  var _seekTimer = null;
 
 
   /* ══════════════════════════════════════
@@ -72,15 +83,28 @@ var Player = (function () {
   function play(item) {
     _currentItem = item;
     _isPlaying = false;
-    _vodUrls = [];
-    _vodUrlIdx = 0;
-    _attempt = 0;
-    _proxyAttempt = false;
-    _proxyIdx = 0;
+    _nextCardShown = false;
+    _hideNextCard();
+    _clearSkipCountdown();
+    _isSeeking = false;
+    if (_seekTimer) clearTimeout(_seekTimer);
 
     _destroyAll();
     _showLoading('Carregando...');
     _hideError();
+
+    /* Gerencia classes de UI */
+    var screenEl = document.getElementById('screen-player');
+    if (screenEl) {
+      if (item._type === 'movie' || item._type === 'series') screenEl.classList.add('vod-mode');
+      else screenEl.classList.remove('vod-mode');
+    }
+
+    /* Foca botão prioritário */
+    setTimeout(function() {
+      var btn = document.getElementById('player-play-pause');
+      if (btn) btn.focus();
+    }, 200);
 
     /* UI do player */
     var titleEl = document.getElementById('player-title');
@@ -308,8 +332,6 @@ var Player = (function () {
    *   Série:  /series/user/pass/episode_id.ext
    * Tenta extensão original, depois mp4, depois mkv.
    */
-
-
   function _buildVodUrls(item) {
     var creds = typeof Auth !== 'undefined' ? Auth.getCredentials() : null;
     if (!creds || !creds.username || !creds.password) return [];
@@ -539,26 +561,25 @@ var Player = (function () {
   function _bindControls() {
     var btnBack = document.getElementById('player-back');
     var btnPlay = document.getElementById('player-play-pause');
-    var btnFwd = document.getElementById('player-forward');
-    var btnRew = document.getElementById('player-rewind');
+    var btnFwd = document.getElementById('player-seek-fwd');
+    var btnRew = document.getElementById('player-seek-back');
     var btnFS = document.getElementById('player-fullscreen');
     var btnRetry = document.getElementById('player-retry');
     var btnBackErr = document.getElementById('player-back-from-error');
     var progressBar = document.getElementById('player-progress-bar');
+    var btnNext = document.getElementById('player-next-skip');
 
     if (btnBack) btnBack.addEventListener('click', function () { App.goBack(); });
     if (btnBackErr) btnBackErr.addEventListener('click', function () { App.goBack(); });
     if (btnPlay) btnPlay.addEventListener('click', togglePlayPause);
     if (btnRetry) btnRetry.addEventListener('click', function () { if (_currentItem) play(_currentItem); });
+    if (btnNext) btnNext.addEventListener('click', function () {
+      if (_nextCallback) _nextCallback();
+      _hideNextCard();
+    });
 
-    if (btnFwd) btnFwd.addEventListener('click', function () {
-      if (_video) _video.currentTime = Math.min(_video.currentTime + 10, _video.duration || Infinity);
-      _showOverlay();
-    });
-    if (btnRew) btnRew.addEventListener('click', function () {
-      if (_video) _video.currentTime = Math.max(_video.currentTime - 10, 0);
-      _showOverlay();
-    });
+    if (btnFwd) btnFwd.addEventListener('click', function () { seek(10); });
+    if (btnRew) btnRew.addEventListener('click', function () { seek(-10); });
     if (btnFS) btnFS.addEventListener('click', _toggleFullscreen);
 
     if (progressBar) {
@@ -569,6 +590,34 @@ var Player = (function () {
         _showOverlay();
       });
     }
+  }
+
+  function seek(seconds) {
+    if (!_video || !isFinite(_video.duration)) return;
+    
+    if (!_isSeeking) {
+      _isSeeking = true;
+      _seekValue = _video.currentTime;
+    }
+
+    _seekValue = Math.max(0, Math.min(_video.duration, _seekValue + seconds));
+    _showOverlay();
+    _updateSeekUI(_seekValue);
+
+    if (_seekTimer) clearTimeout(_seekTimer);
+    _seekTimer = setTimeout(function () {
+      if (_video) _video.currentTime = _seekValue;
+      _isSeeking = false;
+    }, 1500);
+  }
+
+  function _updateSeekUI(targetTime) {
+    var fill = document.getElementById('player-progress-fill');
+    var curEl = document.getElementById('player-time-current');
+    var dur = _video ? _video.duration : 0;
+
+    if (fill) fill.style.width = (dur ? (targetTime / dur * 100) : 0) + '%';
+    if (curEl) curEl.textContent = _formatTime(targetTime);
   }
 
   function togglePlayPause() {
@@ -660,15 +709,81 @@ var Player = (function () {
   }
 
   function _onTimeUpdate() {
+    if (_isSeeking) return;
+
     var fill = document.getElementById('player-progress-fill');
     var curEl = document.getElementById('player-time-current');
     var totEl = document.getElementById('player-time-total');
     if (!_video) return;
     var cur = _video.currentTime;
     var dur = _video.duration;
+
     if (fill) fill.style.width = (dur ? (cur / dur * 100) : 0) + '%';
     if (curEl) curEl.textContent = _formatTime(cur);
     if (totEl) totEl.textContent = (dur && isFinite(dur)) ? _formatTime(dur) : '--:--';
+
+    /* Lógica de Próximo Vídeo (VOD) */
+    if (_currentItem && (_currentItem._type === 'movie' || _currentItem._type === 'series')) {
+      if (dur > 300 && dur - cur <= 60) {
+        if (!_nextCardShown && _nextItem) _showNextCard();
+      } else {
+        if (_nextCardShown) _hideNextCard();
+      }
+    }
+  }
+
+  function _showNextCard() {
+    if (!_nextItem) return;
+    var card = document.getElementById('player-next-card');
+    var title = document.getElementById('player-next-title');
+    if (title) title.textContent = _nextItem.name || 'Próximo';
+    if (card) {
+      card.classList.remove('hidden');
+      _nextCardShown = true;
+      _startSkipCountdown();
+    }
+  }
+
+  function _hideNextCard() {
+    var card = document.getElementById('player-next-card');
+    if (card) card.classList.add('hidden');
+    _nextCardShown = false;
+    _clearSkipCountdown();
+  }
+
+  function _startSkipCountdown() {
+    _clearSkipCountdown();
+    _skipStartTime = Date.now();
+    var duration = 30000; // 30 segundos
+    
+    _skipInterval = setInterval(function() {
+      var elapsed = Date.now() - _skipStartTime;
+      var pct = Math.min(100, (elapsed / duration) * 100);
+      var progressEl = document.getElementById('player-next-progress');
+      if (progressEl) progressEl.style.setProperty('--skip-progress', pct + '%');
+    }, 100);
+
+    _skipTimer = setTimeout(function() {
+      if (_nextCallback) {
+        console.log('[Player] Autoplay: Pulando para o próximo...');
+        _nextCallback();
+      }
+      _hideNextCard();
+    }, duration);
+  }
+
+  function _clearSkipCountdown() {
+    if (_skipTimer) clearTimeout(_skipTimer);
+    if (_skipInterval) clearInterval(_skipInterval);
+    _skipTimer = null;
+    _skipInterval = null;
+    var progressEl = document.getElementById('player-next-progress');
+    if (progressEl) progressEl.style.setProperty('--skip-progress', '0%');
+  }
+
+  function setNextItem(item, callback) {
+    _nextItem = item;
+    _nextCallback = callback;
   }
 
 
@@ -753,6 +868,8 @@ var Player = (function () {
     init: init,
     play: play,
     stop: stop,
+    seek: seek,
+    setNextItem: setNextItem,
     togglePlayPause: togglePlayPause
   };
 })();
