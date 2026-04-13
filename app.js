@@ -286,6 +286,7 @@ var App = (function () {
     _state.isLoadingMore = false;
 
     var firstChunkReceived = false;
+    Renderer.setEmpty(false); // Garante que começa limpo
     var isShowingCache = false;
 
     getStreams(categoryId, function (chunk, isCached) {
@@ -344,8 +345,12 @@ var App = (function () {
         Renderer.setLoading(false);
         _state.renderedCount = 0;
         _loadMoreItems();
+        // Só mostramos vazio se realmente não chegou nada no payload final
+        Renderer.setEmpty(_state.allItems.length === 0);
+      } else {
+        // Se já recebemos chunks, a grade já está visível; verificamos vazio no final
+        Renderer.setEmpty(_state.allItems.length === 0);
       }
-      Renderer.setEmpty(_state.allItems.length === 0);
     }).catch(function (e) {
       if (token !== _state.loadToken) return;
       _handleLoadError(e);
@@ -452,7 +457,7 @@ var App = (function () {
     _state.isLoadingMore = true;
     if (_state.renderedCount > 0) Renderer.setLoadingMore(true);
     setTimeout(function () {
-      var bs = _state.activeTab === 'live' ? 100 : 40;
+      var bs = _state.activeTab === 'live' ? 100 : 20;
       var start = _state.renderedCount;
       var end = Math.min(start + bs, _state.allItems.length);
       Renderer.renderGrid(grid, _state.allItems.slice(start, end), {

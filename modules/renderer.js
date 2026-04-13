@@ -20,6 +20,12 @@ var Renderer = (function () {
     var type = item._type || 'live';
     var category = item.category_name || item.group || '';
     var icon = item.stream_icon || item.cover || item.series_cover || '';
+    
+    /* Proxy de Imagens para TVs antigas (evita problemas de TLS e CORS) */
+    if (icon && icon.indexOf('http') === 0 && typeof Auth !== 'undefined' && Auth.getProxiedImageUrl) {
+      icon = Auth.getProxiedImageUrl(icon);
+    }
+
     var isPortrait = (type === 'movie' || type === 'series');
     var isFav = Storage.isFavorite(id);
 
@@ -123,9 +129,9 @@ var Renderer = (function () {
   }
 
   function createPlaceholder(type, name, portrait) {
-    var icons = { live: '📺', movie: '🎬', series: '🎭' };
+    var icons = { live: 'TV', movie: 'FILME', series: 'SERIE' };
     var div = _el('div', { className: 'card-placeholder' + (portrait ? ' portrait' : '') });
-    div.appendChild(_el('div', { className: 'card-placeholder-icon', textContent: icons[type] || '🎞' }));
+    div.appendChild(_el('div', { className: 'card-placeholder-icon', textContent: icons[type] || '...' }));
     div.appendChild(_el('div', { className: 'card-placeholder-text', textContent: _truncate(name, 24) }));
     return div;
   }
@@ -152,7 +158,9 @@ var Renderer = (function () {
     frag.appendChild(allBtn);
     for (var i = 0; i < categories.length; i++) {
       var cat = categories[i];
-      var btn = _el('button', { className: 'cat-btn', textContent: cat.category_name, tabIndex: 0 });
+      // Remove caracteres especiais que podem não renderizar em TVs antigas
+      var cleanName = (cat.category_name || '').replace(/[^\x20-\x7EÀ-ž\s]/g, '').trim();
+      var btn = _el('button', { className: 'cat-btn', textContent: cleanName, tabIndex: 0 });
       btn.dataset.catId = cat.category_id;
       frag.appendChild(btn);
     }

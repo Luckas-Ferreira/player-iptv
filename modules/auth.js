@@ -88,15 +88,20 @@ var Auth = (function () {
 
       /* ── Recebe dados parciais ────────────────────────────────────────── */
       x.onprogress = function () {
-        var text = x.responseText;
-        if (!text || text.length <= pos) return;
-        buf = text;
-        var result = _parseStreamBuf(buf, pos);
-        if (result.items.length > 0) {
-          all = all.concat(result.items);
-          try { onChunk(result.items); } catch (e) { }
+        try {
+          var text = x.responseText;
+          if (!text || text.length <= pos) return;
+          buf = text;
+          var result = _parseStreamBuf(buf, pos);
+          if (result.items.length > 0) {
+            all = all.concat(result.items);
+            try { onChunk(result.items); } catch (e) { }
+          }
+          pos = result.nextPos;
+        } catch (e) {
+          /* Alguns browsers antigos jogam erro ao acessar responseText antes do fim */
+          console.warn('[Auth] Falha no onprogress access:', e.message);
         }
-        pos = result.nextPos;
       };
 
       /* ── Fim da resposta ─────────────────────────────────────────────── */
@@ -185,6 +190,14 @@ var Auth = (function () {
     }
 
     return { items: items, nextPos: i };
+  }
+
+  /* ─── Proxy de Imagens (CORS/SSL bypass) ───────────────────────────────── */
+  function getProxiedImageUrl(url) {
+    if (!url) return '';
+    // Se a URL já for HTTPS em uma página HTTP, browsers antigos podem reclamar se o cert for novo
+    // Usamos um dos proxies conhecidos para "limpar" a requisição
+    return _PROXIES[0] + encodeURIComponent(url);
   }
 
   /* ─── Login Xtream Codes ──────────────────────────────────────────────── */
