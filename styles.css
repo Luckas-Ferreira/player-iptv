@@ -100,7 +100,9 @@ input, select { font-family: inherit; }
    TELA DE LOGIN
    ════════════════════════════════════════════════════ */
 #screen-login {
-  align-items: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--bg-root);
 }
 
@@ -161,41 +163,50 @@ input, select { font-family: inherit; }
   border-radius: 28px;
   padding: 48px;
   box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+  backdrop-filter: blur(10px);
 }
 
 /* Logo */
-.login-logo { margin-bottom: 40px; }
+.login-logo {
+  margin-bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
 
 .logo-icon {
-  font-size: 0; /* Não mostrar emoji */
-  width: 52px;
-  height: 52px;
-  background: var(--accent);
-  border-radius: 12px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, var(--accent) 0%, #b30710 100%);
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   position: relative;
-  overflow: hidden;
-}
-.logo-icon::after {
-  content: '▶';
-  font-size: 22px;
-  color: #fff;
-  position: absolute;
-  left: 52%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  box-shadow: 0 8px 16px rgba(229, 9, 20, 0.3);
 }
 
+.logo-icon svg {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  fill: #fff;
+  margin-left: 4px; /* Pequeno ajuste para o triângulo parecer centrado opticamente */
+}
+/* Removido o pseudo-elemento pois usaremos SVG real */
+
 .logo-title {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.8px;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -1.2px;
   color: var(--text-1);
   line-height: 1;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  background: linear-gradient(to bottom, #fff, #ccc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .logo-subtitle {
   font-size: 12px;
@@ -531,19 +542,17 @@ input, select { font-family: inherit; }
 .main-content {
   flex: 1;
   height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden; /* IMPORTANTE: O scroll agora é no .content-body */
   display: flex;
   flex-direction: column;
   background: var(--bg-base);
+  position: relative;
 }
 
 /* Header */
 .content-header {
-  position: -webkit-sticky;
-  position: sticky;
-  top: 0;
-  z-index: 200;
+  flex-shrink: 0; /* Não deixa o header encolher */
+  z-index: 100;
   padding: 20px 32px 10px;
   background: var(--bg-base);
   border-bottom: 1px solid var(--border-subtle);
@@ -558,6 +567,17 @@ input, select { font-family: inherit; }
   letter-spacing: -0.02em;
   color: #fff;
   line-height: 1.1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Novo container de rolagem independente — Melhor compatibilidade com TVs antigas */
+.content-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 60px; /* Margem inferior para o conteúdo não colar no fim */
+  -webkit-overflow-scrolling: touch; /* Suavidade em alguns WebKits antigos */
+  transform: translateZ(0); /* Força aceleração de hardware se disponível */
 }
 
 .header-actions {

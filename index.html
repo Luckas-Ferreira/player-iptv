@@ -22,9 +22,12 @@
     </div>
     <div class="login-container">
       <div class="login-logo">
-        <div class="logo-icon">&#9654;</div>
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        </div>
         <h1 class="logo-title">StreamTV</h1>
-        <p class="logo-subtitle">Player IPTV Premium</p>
       </div>
 
       <!-- Tabs de tipo de conexão -->
@@ -172,85 +175,90 @@
         </div>
       </header>
 
-      <!-- Grid de cards -->
-      <div id="content-grid" class="content-grid" role="list" aria-label="Lista de conteúdo"></div>
+      <!-- Corpo do conteúdo — ROLAGEM INDEPENDENTE -->
+      <div id="content-body" class="content-body">
+        
+        <!-- Grid de cards -->
+        <div id="content-grid" class="content-grid" role="list" aria-label="Lista de conteúdo"></div>
 
-      <!-- Loading spinner -->
-      <div id="content-loading" class="content-loading hidden" aria-live="polite">
-        <div class="spinner"></div>
-        <p>Carregando...</p>
-      </div>
+        <!-- Loading spinner -->
+        <div id="content-loading" class="content-loading hidden" aria-live="polite">
+          <div class="spinner"></div>
+          <p>Carregando...</p>
+        </div>
 
-      <!-- Empty state — sem emoji -->
-      <div id="content-empty" class="content-empty hidden" aria-live="polite">
-        <p class="empty-text">Nenhum item encontrado</p>
-      </div>
+        <!-- Empty state — sem emoji -->
+        <div id="content-empty" class="content-empty hidden" aria-live="polite">
+          <p class="empty-text">Nenhum item encontrado</p>
+        </div>
 
-      <!-- ===================== ABA: CONFIGURAÇÕES ===================== -->
-      <div id="tab-settings" class="tab-panel hidden" role="region" aria-label="Configurações">
-        <div class="settings-container">
-          <h3 class="settings-section-title">Aparência</h3>
-          <div class="settings-group">
-            <div class="settings-item" tabindex="0">
-              <div class="settings-item-info">
-                <span class="settings-label">Tamanho da Interface</span>
-                <span class="settings-desc">Ajusta o zoom geral da interface</span>
-              </div>
-              <div class="settings-control">
-                <button id="size-decrease" class="ctrl-btn" aria-label="Diminuir tamanho">A-</button>
-                <span id="size-display" class="ctrl-display">100%</span>
-                <button id="size-increase" class="ctrl-btn" aria-label="Aumentar tamanho">A+</button>
+        <!-- ===================== ABA: CONFIGURAÇÕES ===================== -->
+        <div id="tab-settings" class="tab-panel hidden" role="region" aria-label="Configurações">
+          <div class="settings-container">
+            <h3 class="settings-section-title">Aparência</h3>
+            <div class="settings-group">
+              <div class="settings-item" tabindex="0">
+                <div class="settings-item-info">
+                  <span class="settings-label">Tamanho da Interface</span>
+                  <span class="settings-desc">Ajusta o zoom geral da interface</span>
+                </div>
+                <div class="settings-control">
+                  <button id="size-decrease" class="ctrl-btn" aria-label="Diminuir tamanho">A-</button>
+                  <span id="size-display" class="ctrl-display">100%</span>
+                  <button id="size-increase" class="ctrl-btn" aria-label="Aumentar tamanho">A+</button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <h3 class="settings-section-title">Dados</h3>
-          <div class="settings-group">
-            <div class="settings-item" tabindex="0">
-              <div class="settings-item-info">
-                <span class="settings-label">Limpar Favoritos</span>
-                <span class="settings-desc">Remove todos os itens favoritados</span>
+            <h3 class="settings-section-title">Dados</h3>
+            <div class="settings-group">
+              <div class="settings-item" tabindex="0">
+                <div class="settings-item-info">
+                  <span class="settings-label">Limpar Favoritos</span>
+                  <span class="settings-desc">Remove todos os itens favoritados</span>
+                </div>
+                <button id="clear-favorites" class="btn-danger-sm" tabindex="0">Limpar</button>
               </div>
-              <button id="clear-favorites" class="btn-danger-sm" tabindex="0">Limpar</button>
-            </div>
-            <div class="settings-item" tabindex="0">
-              <div class="settings-item-info">
-                <span class="settings-label">Limpar Histórico</span>
-                <span class="settings-desc">Remove os itens assistidos recentemente</span>
+              <div class="settings-item" tabindex="0">
+                <div class="settings-item-info">
+                  <span class="settings-label">Limpar Histórico</span>
+                  <span class="settings-desc">Remove os itens assistidos recentemente</span>
+                </div>
+                <button id="clear-recents" class="btn-danger-sm" tabindex="0">Limpar</button>
               </div>
-              <button id="clear-recents" class="btn-danger-sm" tabindex="0">Limpar</button>
-            </div>
-            <div class="settings-item" tabindex="0">
-              <div class="settings-item-info">
-                <span class="settings-label">Limpar Tudo</span>
-                <span class="settings-desc">Remove todos os dados salvos localmente</span>
+              <div class="settings-item" tabindex="0">
+                <div class="settings-item-info">
+                  <span class="settings-label">Limpar Tudo</span>
+                  <span class="settings-desc">Remove todos os dados salvos localmente</span>
+                </div>
+                <button id="clear-all" class="btn-danger-sm" tabindex="0">Limpar Tudo</button>
               </div>
-              <button id="clear-all" class="btn-danger-sm" tabindex="0">Limpar Tudo</button>
             </div>
-          </div>
 
-          <h3 class="settings-section-title">Conexão</h3>
-          <div class="settings-group">
-            <div class="settings-item">
-              <div class="settings-item-info">
-                <span class="settings-label">Conta Conectada</span>
-                <span id="settings-account" class="settings-desc">Carregando...</span>
+            <h3 class="settings-section-title">Conexão</h3>
+            <div class="settings-group">
+              <div class="settings-item">
+                <div class="settings-item-info">
+                  <span class="settings-label">Conta Conectada</span>
+                  <span id="settings-account" class="settings-desc">Carregando...</span>
+                </div>
+                <button id="settings-logout" class="btn-danger-sm" tabindex="0">Desconectar</button>
               </div>
-              <button id="settings-logout" class="btn-danger-sm" tabindex="0">Desconectar</button>
             </div>
-          </div>
 
-          <h3 class="settings-section-title">Sobre</h3>
-          <div class="settings-group">
-            <div class="settings-item">
-              <div class="settings-item-info">
-                <span class="settings-label">StreamTV Player</span>
-                <span class="settings-desc">Versão 1.0 – Player IPTV para Smart TV</span>
+            <h3 class="settings-section-title">Sobre</h3>
+            <div class="settings-group">
+              <div class="settings-item">
+                <div class="settings-item-info">
+                  <span class="settings-label">StreamTV Player</span>
+                  <span class="settings-desc">Versão 1.0 – Player IPTV para Smart TV</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+
+      </div><!-- fim content-body -->
 
     </div><!-- fim main-content -->
   </div><!-- fim screen-main -->
