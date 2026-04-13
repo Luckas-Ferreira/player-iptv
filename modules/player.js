@@ -578,8 +578,6 @@ var Player = (function () {
       _hideNextCard();
     });
 
-    if (btnFwd) btnFwd.addEventListener('click', function () { seek(10); });
-    if (btnRew) btnRew.addEventListener('click', function () { seek(-10); });
     if (btnFS) btnFS.addEventListener('click', _toggleFullscreen);
 
     if (progressBar) {
@@ -629,6 +627,10 @@ var Player = (function () {
       _video.pause();
     }
     _showOverlay();
+
+    /* Mantém o foco no botão de play para o Enter funcionar */
+    var btn = document.getElementById('player-play-pause');
+    if (btn) btn.focus();
   }
 
 
@@ -741,6 +743,10 @@ var Player = (function () {
       card.classList.remove('hidden');
       _nextCardShown = true;
       _startSkipCountdown();
+
+      /* Foca o botão de pular automaticamente */
+      var nextBtn = document.getElementById('player-next-skip');
+      if (nextBtn) nextBtn.focus();
     }
   }
 
@@ -749,6 +755,10 @@ var Player = (function () {
     if (card) card.classList.add('hidden');
     _nextCardShown = false;
     _clearSkipCountdown();
+
+    /* Retorna o foco para o play quando o card some */
+    var playBtn = document.getElementById('player-play-pause');
+    if (playBtn) playBtn.focus();
   }
 
   function _startSkipCountdown() {
