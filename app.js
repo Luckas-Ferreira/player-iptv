@@ -310,8 +310,6 @@ var App = (function () {
       }
       if (filteredChunk.length === 0) return;
 
-      if (isCached) isShowingCache = true;
-
       /* Na primeira chegada de dados: esconde spinner e mostra grade */
       if (!firstChunkReceived) {
         firstChunkReceived = true;
@@ -321,8 +319,9 @@ var App = (function () {
 
       _state.allItems = _state.allItems.concat(filteredChunk);
       
-      /* Se ainda não renderizamos nada, mostra o primeiro lote logo */
-      if (_state.renderedCount === 0) {
+      /* Renderiza progressivamente enquanto os dados chegam, até atingir um limite inicial (ex: 200 itens)
+         Isso garante que a interface atualize automaticamente sem esperar o JSON gigante terminar. */
+      if (_state.renderedCount < 200) {
         _loadMoreItems();
       }
     }).then(function (allItems) {
@@ -462,13 +461,17 @@ var App = (function () {
       var bs = _state.activeTab === 'live' ? 100 : 20;
       var start = _state.renderedCount;
       var end = Math.min(start + bs, _state.allItems.length);
-      Renderer.renderGrid(grid, _state.allItems.slice(start, end), {
-        onPlay: _playItem, onFavorite: _onFavoriteToggle
-      }, true);
-      _state.renderedCount = end;
+      
+      if (start < end) {
+        Renderer.renderGrid(grid, _state.allItems.slice(start, end), {
+          onPlay: _playItem, onFavorite: _onFavoriteToggle
+        }, true);
+        _state.renderedCount = end;
+      }
+      
       _state.isLoadingMore = false;
       Renderer.setLoadingMore(false);
-    }, 80);
+    }, 10); // Reduzido de 80ms para 10ms para resposta mais rápida no streaming
   }
 
   function _onFavoriteToggle(item, isFav) {
