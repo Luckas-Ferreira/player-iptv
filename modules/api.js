@@ -21,10 +21,31 @@ var API = (function () {
   };
 
   /* ─── URL Builder ───────────────────────────────────────────────────── */
+  function _getEffectiveServer(typeOrAction) {
+    var c = Auth.getCredentials();
+    if (!c || !c.server) return '';
+    var server = c.server;
+
+    /* Ações ou tipos que correspondem a VOD (Filmes) ou Séries */
+    var vodTargets = [
+      'get_vod_categories', 'get_vod_streams', 'get_vod_info',
+      'get_series_categories', 'get_series', 'get_series_info',
+      'movie', 'series'
+    ];
+
+    /* Se o servidor for da rede stream4k e o alvo for VOD/Series, usa o IP direto p/ bypass Cloudflare */
+    var isStream4k = server.indexOf('stream') !== -1 && server.indexOf('4k') !== -1;
+    if (isStream4k && vodTargets.indexOf(typeOrAction) !== -1) {
+      return 'http://191.96.78.246';
+    }
+    return server;
+  }
+
   function _xtreamUrl(action, extra) {
     var c = Auth.getCredentials();
     if (!c || c.type !== 'xtream') return null;
-    var url = c.server + '/player_api.php?username=' + encodeURIComponent(c.username) +
+    var base = _getEffectiveServer(action);
+    var url = base + '/player_api.php?username=' + encodeURIComponent(c.username) +
       '&password=' + encodeURIComponent(c.password) + '&action=' + action;
     if (extra) url += '&' + extra;
     return url;
@@ -175,12 +196,14 @@ var API = (function () {
 
   function getVodStreamUrl(streamId, ext) {
     var c = Auth.getCredentials(); if (!c) return '';
-    return c.server + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
+    var base = _getEffectiveServer('movie');
+    return base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
   }
 
   function getEpisodeStreamUrl(streamId, ext) {
     var c = Auth.getCredentials(); if (!c) return '';
-    return c.server + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
+    var base = _getEffectiveServer('series');
+    return base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
   }
 
   /* ─── M3U ────────────────────────────────────────────────────────────── */

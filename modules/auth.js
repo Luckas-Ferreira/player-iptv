@@ -22,7 +22,11 @@ var Auth = (function () {
   ];
 
   function _needsProxy(url) {
-    return window.location.protocol === 'https:' && url.indexOf('http://') === 0;
+    if (window.location.protocol === 'https:' && url.indexOf('http://') === 0) return true;
+    /* Força proxy para IPs diretos (evita CORS fail pq IPs raramente tem headers de controle) */
+    var m = url.match(/^https?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+    if (m) return true;
+    return false;
   }
 
   /* ─── XHR simples (retorna Promise<string>) ──────────────────────────── */

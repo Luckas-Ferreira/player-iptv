@@ -205,6 +205,10 @@ var App = (function () {
     }
 
     var grid = document.getElementById('content-grid');
+    var catFilter = document.getElementById('category-filter');
+    if (grid) grid.innerHTML = '';
+    if (catFilter) catFilter.innerHTML = '';
+
     var header = document.querySelector('.content-header');
     var spanel = document.getElementById('tab-search');
     var stpanel = document.getElementById('tab-settings');
@@ -433,6 +437,10 @@ var App = (function () {
   function _handleLoadError(err) {
     Renderer.setLoading(false);
     Renderer.setEmpty(true);
+    /* Limpa filtros se deu erro feio */
+    var catFilter = document.getElementById('category-filter');
+    if (catFilter) catFilter.innerHTML = '';
+    
     Renderer.showToast('Erro ao carregar: ' + (err && err.message ? err.message : 'falha de conexão'), 'error');
     console.error('[App]', err);
   }
