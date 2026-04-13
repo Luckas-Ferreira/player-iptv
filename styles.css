@@ -1516,6 +1516,50 @@ select {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 28px;
+}
+
+.player-seek-btn--vod-only,
+.player-keyboard-hint--vod-only {
+  display: none;
+}
+
+#screen-player.vod-mode .player-seek-btn--vod-only,
+#screen-player.vod-mode .player-keyboard-hint--vod-only {
+  display: flex;
+}
+
+.player-seek-btn {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 88px;
+  min-height: 88px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  color: #fff;
+}
+
+.seek-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.player-keyboard-hint {
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.player-keyboard-hint kbd {
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .player-big-btn {

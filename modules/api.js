@@ -21,9 +21,18 @@ var API = (function () {
   };
 
   /* ─── URL Builder ───────────────────────────────────────────────────── */
-  function _getEffectiveServer(typeOrAction) {
+  function _getEffectiveServer(typeOrAction, useIp) {
     var c = Auth.getCredentials();
     if (!c || !c.server) return '';
+    if (useIp && c.serverInfo && (c.serverInfo.server_ip || c.serverInfo.ip)) {
+      var ip = c.serverInfo.server_ip || c.serverInfo.ip;
+      var url = c.server;
+      // Substitui o domínio pelo IP mantendo o protocolo e a porta
+      var m = url.match(/^(https?:\/\/)([^\/:]+)(:\d+)?/);
+      if (m) {
+        return m[1] + ip + (m[3] || '');
+      }
+    }
     return c.server;
   }
 
@@ -175,23 +184,23 @@ var API = (function () {
   }
 
   /* ─── URLs de stream ─────────────────────────────────────────────────── */
-  function getLiveStreamUrl(streamId, ext, proxied, proxyIdx) {
+  function getLiveStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('live');
+    var base = _getEffectiveServer('live', useIp);
     var url = base + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
 
-  function getVodStreamUrl(streamId, ext, proxied, proxyIdx) {
+  function getVodStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('movie');
+    var base = _getEffectiveServer('movie', useIp);
     var url = base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
 
-  function getEpisodeStreamUrl(streamId, ext, proxied, proxyIdx) {
+  function getEpisodeStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('series');
+    var base = _getEffectiveServer('series', useIp);
     var url = base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
