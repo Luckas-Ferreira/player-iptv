@@ -319,33 +319,36 @@ var App = (function () {
 
       _state.allItems = _state.allItems.concat(filteredChunk);
       
-      /* Renderiza progressivamente enquanto os dados chegam, até atingir um limite inicial (ex: 200 itens)
-         Isso garante que a interface atualize automaticamente sem esperar o JSON gigante terminar. */
+      /* Limite de segurança para evitar que a TV trave com excesso de cards (10k) */
+      if (_state.allItems.length > 10000) {
+        console.warn('[App] Limite de segurança atingido, truncando para 10k itens');
+        _state.allItems = _state.allItems.slice(0, 10000);
+      }
+      
+      /* Renderiza progressivamente enquanto os dados chegam, até atingir um limite inicial (ex: 200 itens) */
       if (_state.renderedCount < 200) {
         _loadMoreItems();
       }
     }).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
-      /* Filtra o payload final também para garantir */
-      var finalItems = [];
-      if (allItems) {
+      /* Consolida o payload final. Evitamos re-processar tudo se já temos no allItems */
+      if (!_state.allItems.length && allItems && allItems.length) {
+        var finalItems = [];
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];
           if (it && it.name && it.name.trim() !== '') finalItems.push(it);
+          if (finalItems.length >= 10000) break;
         }
+        _state.allItems = finalItems;
       }
-      _state.allItems = finalItems;
 
       if (!firstChunkReceived) {
-        /* Nenhum chunk recebido via streaming (proxy bufferizou tudo) */
         Renderer.setLoading(false);
         _state.renderedCount = 0;
         _loadMoreItems();
-        // Só mostramos vazio se realmente não chegou nada no payload final
         Renderer.setEmpty(_state.allItems.length === 0);
       } else {
-        // Se já recebemos chunks, a grade já está visível; verificamos vazio no final
         Renderer.setEmpty(_state.allItems.length === 0);
       }
     }).catch(function (e) {
@@ -430,12 +433,13 @@ var App = (function () {
   function _handleLoadError(err) {
     Renderer.setLoading(false);
     Renderer.setEmpty(true);
-    /* Limpa filtros se deu erro feio */
-    var catFilter = document.getElementById('category-filter');
-    if (catFilter) catFilter.innerHTML = '';
     
-    Renderer.showToast('Erro ao carregar: ' + (err && err.message ? err.message : 'falha de conexão'), 'error');
-    console.error('[App]', err);
+    var msg = (err && err.message ? err.message : 'falha de conexão');
+    if (msg.indexOf('timeout') !== -1) msg = 'O servidor demorou demais para responder';
+    if (msg.indexOf('JSON') !== -1 || msg.indexOf('Memória') !== -1) msg = 'Lista muito grande para esta TV (estouro de memória)';
+    
+    Renderer.showToast('Erro: ' + msg, 'error', 5000);
+    console.error('[App] Erro de carregamento:', err);
   }
 
   /* ─── Grid / Scroll infinito ─────────────────────────────────────────── */

@@ -84,10 +84,12 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var x = new XMLHttpRequest();
       var pos = 0;         // posição já processada no responseText
-      var all = [];        // todos os itens recebidos (opcional, mas mantido para resolve)
+      var all = [];        // todos os itens recebidos (mantido, mas com limpeza agressiva)
+      var maxItems = 12000; // Limite de segurança para evitar crash em TVs (aprox 12k itens)
 
       x.open('GET', proxied, true);
-      x.timeout = 60000;
+      /* Aumentado timeout para 90s pois listas gigantes demoram para passar pelo proxy */
+      x.timeout = 90000;
 
       /* ── Recebe dados parciais ────────────────────────────────────────── */
       x.onprogress = function () {
@@ -99,7 +101,10 @@ var Auth = (function () {
           
           var result = _parseStreamBuf(text, pos);
           if (result.items.length > 0) {
-            all = all.concat(result.items);
+            /* Se já atingimos o limite de segurança, paramos de acumular para não travar a TV */
+            if (all.length < maxItems) {
+              all = all.concat(result.items);
+            }
             try { onChunk(result.items); } catch (e) { }
           }
           pos = result.nextPos;
@@ -115,16 +120,21 @@ var Auth = (function () {
           /* Processa qualquer resto que onprogress não pegou */
           if (text.length > pos) {
             var result = _parseStreamBuf(text, pos);
-            if (result.items.length > 0) {
+            if (result.items.length > 0 && all.length < maxItems) {
               all = all.concat(result.items);
               try { onChunk(result.items); } catch (e) { }
             }
           }
-          /* Se não chegou nada via streaming (ex: servidor não suporta ou resposta pequena), tenta parse completo */
+          /* Se não chegou nada via streaming, tenta parse completo */
           if (all.length === 0) {
-            try { all = JSON.parse(text) || []; } catch (e) { }
-            if (all && !Array.isArray(all)) all = [all]; // Garante array
-            if (all.length > 0) try { onChunk(all); } catch (e) { }
+            try { 
+              all = JSON.parse(text) || []; 
+              if (all && !Array.isArray(all)) all = [all];
+              if (all.length > 0) try { onChunk(all); } catch (e) { }
+            } catch (e) {
+              reject(new Error('Falha ao processar lista gigante (Memória insuficiente)'));
+              return;
+            }
           }
           resolve(all);
         } else {
@@ -132,8 +142,8 @@ var Auth = (function () {
         }
       };
 
-      x.onerror = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Erro de rede')); };
-      x.ontimeout = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Tempo esgotado')); };
+      x.onerror = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Erro de conexão com o servidor')); };
+      x.ontimeout = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('O servidor demorou muito para responder (Timeout)')); };
       x.send();
     });
   }
