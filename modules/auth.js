@@ -84,8 +84,9 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var x = new XMLHttpRequest();
       var pos = 0;         // posição já processada no responseText
-      var all = [];        // todos os itens recebidos (mantido, mas com limpeza agressiva)
-      var maxItems = 12000; // Limite de segurança para evitar crash em TVs (aprox 12k itens)
+      var all = [];        // todos os itens recebidos
+      var maxItems = 3000;  // Limite reduzido drasticamente para 3k para salvar a memória das TVs
+      var finished = false; // Flag para evitar duplos retornos
 
       x.open('GET', proxied, true);
       /* Aumentado timeout para 90s pois listas gigantes demoram para passar pelo proxy */
@@ -93,6 +94,7 @@ var Auth = (function () {
 
       /* ── Recebe dados parciais ────────────────────────────────────────── */
       x.onprogress = function () {
+        if (finished) return;
         try {
           var text = '';
           try { text = x.responseText; } catch(e) { return; }
@@ -101,13 +103,27 @@ var Auth = (function () {
           
           var result = _parseStreamBuf(text, pos);
           if (result.items.length > 0) {
-            /* Se já atingimos o limite de segurança, paramos de acumular para não travar a TV */
-            if (all.length < maxItems) {
-              all = all.concat(result.items);
+            var toAdd = result.items;
+            if (all.length + toAdd.length > maxItems) {
+              toAdd = toAdd.slice(0, maxItems - all.length);
             }
-            try { onChunk(result.items); } catch (e) { }
+            
+            if (toAdd.length > 0) {
+              all = all.concat(toAdd);
+              try { onChunk(toAdd); } catch (e) { }
+            }
+
+            /* Se atingiu o limite, ABORTA a conexão imediatamente para parar de consumir RAM */
+            if (all.length >= maxItems) {
+              finished = true;
+              console.warn('[Auth] Limite de segurança (3k) atingido. Abortando download para salvar memória.');
+              try { x.abort(); } catch(e) {}
+              resolve(all);
+              return;
+            }
           }
           pos = result.nextPos;
+          text = null; // Ajuda o GC
         } catch (e) {
           console.warn('[Auth] Erro no streaming:', e.message);
         }
@@ -115,14 +131,16 @@ var Auth = (function () {
 
       /* ── Fim da resposta ─────────────────────────────────────────────── */
       x.onload = function () {
+        if (finished) return;
         if (x.status >= 200 && x.status < 300) {
           var text = x.responseText;
           /* Processa qualquer resto que onprogress não pegou */
           if (text.length > pos) {
             var result = _parseStreamBuf(text, pos);
             if (result.items.length > 0 && all.length < maxItems) {
-              all = all.concat(result.items);
-              try { onChunk(result.items); } catch (e) { }
+              var toAdd = result.items.slice(0, maxItems - all.length);
+              all = all.concat(toAdd);
+              try { onChunk(toAdd); } catch (e) { }
             }
           }
           /* Se não chegou nada via streaming, tenta parse completo */
@@ -130,20 +148,28 @@ var Auth = (function () {
             try { 
               all = JSON.parse(text) || []; 
               if (all && !Array.isArray(all)) all = [all];
+              if (all.length > maxItems) all = all.slice(0, maxItems);
               if (all.length > 0) try { onChunk(all); } catch (e) { }
             } catch (e) {
               reject(new Error('Falha ao processar lista gigante (Memória insuficiente)'));
               return;
             }
           }
+          finished = true;
           resolve(all);
         } else {
           _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('HTTP ' + x.status));
         }
       };
 
-      x.onerror = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Erro de conexão com o servidor')); };
-      x.ontimeout = function () { _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('O servidor demorou muito para responder (Timeout)')); };
+      x.onerror = function () { 
+        if (finished) return;
+        _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Erro de conexão com o servidor')); 
+      };
+      x.ontimeout = function () { 
+        if (finished) return;
+        _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('O servidor demorou muito para responder (Timeout)')); 
+      };
       x.send();
     });
   }

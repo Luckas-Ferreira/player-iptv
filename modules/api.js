@@ -218,8 +218,14 @@ var API = (function () {
     });
   }
 
-  function clearCache() {
-    for (var k in _cache) if (_cache.hasOwnProperty(k)) _cache[k] = null;
+  function clearCache(onlyStreams) {
+    for (var k in _cache) {
+      if (!_cache.hasOwnProperty(k)) continue;
+      if (onlyStreams && k.indexOf('Categories') !== -1) continue;
+      _cache[k] = null;
+      if (onlyStreams) delete _cache[k]; // Remove chaves dinâmicas (ex: live_123)
+    }
+    console.log('[API] Cache limpo' + (onlyStreams ? ' (apenas streams)' : ''));
   }
 
   return {

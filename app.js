@@ -319,10 +319,10 @@ var App = (function () {
 
       _state.allItems = _state.allItems.concat(filteredChunk);
       
-      /* Limite de segurança para evitar que a TV trave com excesso de cards (10k) */
-      if (_state.allItems.length > 10000) {
-        console.warn('[App] Limite de segurança atingido, truncando para 10k itens');
-        _state.allItems = _state.allItems.slice(0, 10000);
+      /* Limite de segurança reduzido para 3k para evitar que a TV trave */
+      if (_state.allItems.length > 3000) {
+        console.warn('[App] Limite de segurança atingido, truncando para 3k itens');
+        _state.allItems = _state.allItems.slice(0, 3000);
       }
       
       /* Renderiza progressivamente enquanto os dados chegam, até atingir um limite inicial (ex: 200 itens) */
@@ -338,7 +338,7 @@ var App = (function () {
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];
           if (it && it.name && it.name.trim() !== '') finalItems.push(it);
-          if (finalItems.length >= 10000) break;
+          if (finalItems.length >= 3000) break;
         }
         _state.allItems = finalItems;
       }
@@ -381,6 +381,8 @@ var App = (function () {
             allBtns[j].classList.remove('active');
           }
           btn.classList.add('active');
+          /* Freia memória antes de carregar nova categoria gigante */
+          if (API && API.clearCache) API.clearCache(true);
           Renderer.setLoading(true);
           _startStreamingLoad(getStreams, cat.category_id);
         });
