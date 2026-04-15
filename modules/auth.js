@@ -1,313 +1,230 @@
 /**
- * auth.js – Autenticação Xtream Codes e M3U
- *
- * NOVIDADE: _fetchJSONStream(url, onChunk)
- *   Usa XHR onprogress para parsear objetos JSON conforme chegam,
- *   chamando onChunk([...items]) a cada lote recebido.
- *   Permite mostrar cards na tela antes do JSON terminar de chegar.
+ * auth.js – REESCRITO para TV antiga (Panasonic)
+ * Usa XMLHttpRequest em vez de fetch() + ReadableStream
  */
-
 var Auth = (function () {
   'use strict';
 
   var _credentials = null;
+  var _MAX_ITEMS = 3000;
 
-  /* ─── Proxies CORS (HTTPS → HTTP) ──────────────────────────────────────
-     Tentados em ordem; se um falhar, passa pro próximo automaticamente.   */
-  var _PROXIES = [
-    'https://api.codetabs.com/v1/proxy?quest=',
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/raw?url=',
-    'https://thingproxy.freeboard.io/fetch/'
-  ];
-
-  function _needsProxy(url) {
-    if (window.location.protocol === 'https:' && url.indexOf('http://') === 0) return true;
-    /* Força proxy para IPs diretos (evita CORS fail pq IPs raramente tem headers de controle) */
-    var m = url.match(/^https?:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
-    if (m) return true;
-    return false;
-  }
-
-  /* ─── XHR simples (retorna Promise<string>) ──────────────────────────── */
-  function _xhr(url, timeout) {
+  /* ── XHR Base ─────────────────────────────────────────── */
+  function _xhrText(url, timeout) {
     return new Promise(function (resolve, reject) {
-      var x = new XMLHttpRequest();
-      x.open('GET', url, true);
-      x.timeout = timeout || 30000;
-      x.onload = function () {
-        if (x.status >= 200 && x.status < 300) resolve(x.responseText);
-        else reject(new Error('HTTP ' + x.status));
-      };
-      x.onerror = function () { reject(new Error('Erro de rede')); };
-      x.ontimeout = function () { reject(new Error('Tempo esgotado')); };
-      x.send();
-    });
-  }
+      var done = false;
+      var xhr = new XMLHttpRequest();
+      var ms = timeout || 35000;
 
-  /* ─── Cascata de proxies (texto) ─────────────────────────────────────── */
-  function _fetchText(url, timeout) {
-    if (!_needsProxy(url)) return _xhr(url, timeout);
-    return _tryProxy(url, 0, timeout);
-  }
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        try { xhr.abort(); } catch (e) {}
+        reject(new Error('timeout'));
+      }, ms);
 
-  function _tryProxy(url, idx, timeout) {
-    if (idx >= _PROXIES.length) {
-      return Promise.reject(new Error(
-        'Não foi possível acessar o servidor. Verifique se o endereço está correto.'
-      ));
-    }
-    return _xhr(_PROXIES[idx] + encodeURIComponent(url), timeout).catch(function (err) {
-      console.warn('[Auth] Proxy ' + _PROXIES[idx] + ' falhou (' + err.message + ')');
-      return _tryProxy(url, idx + 1, timeout);
-    });
-  }
-
-  function _fetchJSON(url) {
-    return _fetchText(url, 30000).then(function (text) {
-      try { return JSON.parse(text); }
-      catch (e) { throw new Error('Resposta inválida do servidor (não é JSON)'); }
-    });
-  }
-
-  /* ═══════════════════════════════════════════════════════════════════════
-     STREAMING JSON — parseia objetos conforme chegam via onprogress
-     ═══════════════════════════════════════════════════════════════════════
-     Retorna Promise<Array> que resolve com TODOS os itens ao final.
-     onChunk(items[]) é chamado progressivamente a cada lote detectado.    */
-  function _fetchJSONStream(url, onChunk) {
-    var proxied = _needsProxy(url) ? (_PROXIES[0] + encodeURIComponent(url)) : url;
-    return _doStreamXHR(proxied, url, 0, onChunk);
-  }
-
-  function _doStreamXHR(proxied, original, proxyIdx, onChunk) {
-    return new Promise(function (resolve, reject) {
-      var x = new XMLHttpRequest();
-      var pos = 0;         // posição já processada no responseText
-      var all = [];        // todos os itens recebidos
-      var maxItems = 3000;  // Limite reduzido drasticamente para 3k para salvar a memória das TVs
-      var finished = false; // Flag para evitar duplos retornos
-
-      x.open('GET', proxied, true);
-      /* Aumentado timeout para 90s pois listas gigantes demoram para passar pelo proxy */
-      x.timeout = 90000;
-
-      /* ── Recebe dados parciais ────────────────────────────────────────── */
-      x.onprogress = function () {
-        if (finished) return;
-        try {
-          var text = '';
-          try { text = x.responseText; } catch(e) { return; }
-          
-          if (!text || text.length <= pos) return;
-          
-          var result = _parseStreamBuf(text, pos);
-          if (result.items.length > 0) {
-            var toAdd = result.items;
-            if (all.length + toAdd.length > maxItems) {
-              toAdd = toAdd.slice(0, maxItems - all.length);
-            }
-            
-            if (toAdd.length > 0) {
-              all = all.concat(toAdd);
-              try { onChunk(toAdd); } catch (e) { }
-            }
-
-            /* Se atingiu o limite, ABORTA a conexão imediatamente para parar de consumir RAM */
-            if (all.length >= maxItems) {
-              finished = true;
-              console.warn('[Auth] Limite de segurança (3k) atingido. Abortando download para salvar memória.');
-              try { x.abort(); } catch(e) {}
-              resolve(all);
-              return;
-            }
-          }
-          pos = result.nextPos;
-          text = null; // Ajuda o GC
-        } catch (e) {
-          console.warn('[Auth] Erro no streaming:', e.message);
-        }
-      };
-
-      /* ── Fim da resposta ─────────────────────────────────────────────── */
-      x.onload = function () {
-        if (finished) return;
-        if (x.status >= 200 && x.status < 300) {
-          var text = x.responseText;
-          /* Processa qualquer resto que onprogress não pegou */
-          if (text.length > pos) {
-            var result = _parseStreamBuf(text, pos);
-            if (result.items.length > 0 && all.length < maxItems) {
-              var toAdd = result.items.slice(0, maxItems - all.length);
-              all = all.concat(toAdd);
-              try { onChunk(toAdd); } catch (e) { }
-            }
-          }
-          /* Se não chegou nada via streaming, tenta parse completo */
-          if (all.length === 0) {
-            try { 
-              all = JSON.parse(text) || []; 
-              if (all && !Array.isArray(all)) all = [all];
-              if (all.length > maxItems) all = all.slice(0, maxItems);
-              if (all.length > 0) try { onChunk(all); } catch (e) { }
-            } catch (e) {
-              reject(new Error('Falha ao processar lista gigante (Memória insuficiente)'));
-              return;
-            }
-          }
-          finished = true;
-          resolve(all);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText || '');
+        } else if (xhr.status === 0) {
+          reject(new Error('network error'));
         } else {
-          _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('HTTP ' + x.status));
+          reject(new Error('HTTP ' + xhr.status));
         }
       };
 
-      x.onerror = function () { 
-        if (finished) return;
-        _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('Erro de conexão com o servidor')); 
+      xhr.onerror = function () {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        reject(new Error('network error'));
       };
-      x.ontimeout = function () { 
-        if (finished) return;
-        _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, new Error('O servidor demorou muito para responder (Timeout)')); 
+
+      xhr.onabort = function () {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        reject(new Error('aborted'));
       };
-      x.send();
-    });
-  }
-
-  function _tryNextProxy(original, proxyIdx, onChunk, resolve, reject, err) {
-    var next = proxyIdx + 1;
-    if (!_needsProxy(original)) { reject(err); return; }
-    if (next >= _PROXIES.length) { reject(new Error('Todos os proxies falharam: ' + err.message)); return; }
-    console.warn('[Auth] Proxy ' + proxyIdx + ' falhou (' + err.message + '), tentando ' + next + '...');
-    _doStreamXHR(_PROXIES[next] + encodeURIComponent(original), original, next, onChunk)
-      .then(resolve).catch(reject);
-  }
-
-  /* ─── Parser incremental de JSON Array ───────────────────────────────────
-     Extrai objetos JSON completos (top-level items de um array) do buffer
-     parcial. Retorna { items: [...], nextPos: N }.                          */
-  function _parseStreamBuf(buf, startPos) {
-    var items = [];
-    var i = startPos;
-    var len = buf.length;
-
-    /* Avança até o primeiro '{' */
-    while (i < len && buf[i] !== '{') i++;
-
-    while (i < len) {
-      if (buf[i] !== '{') { i++; continue; }
-
-      var start = i;
-      var depth = 0;
-      var inStr = false;
-      var esc = false;
-      var end = -1;
-
-      for (var j = i; j < len; j++) {
-        var c = buf[j];
-        if (esc) { esc = false; continue; }
-        if (c === '\\' && inStr) { esc = true; continue; }
-        if (c === '"') { inStr = !inStr; continue; }
-        if (inStr) continue;
-        if (c === '{') depth++;
-        if (c === '}') {
-          depth--;
-          if (depth === 0) { end = j; break; }
-        }
-      }
-
-      if (end === -1) break; /* Objeto incompleto — espera mais dados */
 
       try {
-        var obj = JSON.parse(buf.substring(start, end + 1));
-        items.push(obj);
-      } catch (e) { /* Ignora objeto malformado */ }
+        xhr.open('GET', url, true);
+        xhr.send();
+      } catch (e) {
+        done = true; clearTimeout(timer); reject(e);
+      }
+    });
+  }
 
-      i = end + 1;
-      /* Avança vírgulas e whitespace entre objetos */
-      while (i < len && (buf[i] === ',' || buf[i] === ' ' ||
-        buf[i] === '\n' || buf[i] === '\r' || buf[i] === '\t')) i++;
+  /* ── Parse JSON ou Base64 (como o LIVEBOX usa) ────────── */
+  function _parseResponse(text) {
+    if (!text) return null;
+    var t = text.trim();
+    if (!t) return null;
+
+    // Detecta base64: começa com '=' ou não tem [ nem {
+    var looksB64 = t.charAt(0) === '=';
+    if (!looksB64 && t.charAt(0) !== '[' && t.charAt(0) !== '{') {
+      var sample = t.replace(/[\r\n]/g, '').substring(0, 80);
+      looksB64 = /^[A-Za-z0-9+\/=]+$/.test(sample);
     }
 
-    return { items: items, nextPos: i };
+    if (looksB64) {
+      try {
+        var b64 = t.replace(/[\r\n\s]/g, '');
+        if (b64.charAt(0) === '=') b64 = b64.substring(1);
+        return JSON.parse(atob(b64));
+      } catch (e) { /* não era base64, continua */ }
+    }
+
+    try {
+      return JSON.parse(t);
+    } catch (e) {
+      throw new Error('JSON inválido: ' + e.message);
+    }
   }
 
-  /* ─── Proxy de Imagens (CORS/SSL bypass) ───────────────────────────────── */
-  function getProxiedImageUrl(url) {
-    if (!url) return '';
-    // Se a URL já for HTTPS em uma página HTTP, browsers antigos podem reclamar se o cert for novo
-    // Usamos um dos proxies conhecidos para "limpar" a requisição
-    return _PROXIES[0] + encodeURIComponent(url);
+  /* ── _fetchJSON: respostas pequenas (categorias, info) ── */
+  function _fetchJSON(url, timeout) {
+    if (!url) return Promise.reject(new Error('URL inválida'));
+    return _xhrText(url, timeout || 20000).then(function (text) {
+      return _parseResponse(text);
+    });
   }
 
-  /* ─── Login Xtream Codes ──────────────────────────────────────────────── */
-  function loginXtream(server, username, password) {
-    var base = server.trim().replace(/\/$/, '');
-    if (base.indexOf('http') !== 0) base = 'http://' + base;
-    var url = base + '/player_api.php?username=' + encodeURIComponent(username) +
-      '&password=' + encodeURIComponent(password);
+  /* ── _fetchJSONStream: listas grandes (filmes, séries) ───
+     Estratégia TV-compatível:
+     1. Uma requisição XHR baixa TUDO de uma vez
+     2. Entrega em lotes de 50 via setTimeout(0) para não
+        travar a thread da TV enquanto renderiza os cards    */
+  function _fetchJSONStream(url, onChunk, timeout) {
+    if (!url) return Promise.reject(new Error('URL inválida'));
 
-    return _fetchJSON(url).then(function (data) {
-      if (!data) return { success: false, error: 'Resposta inválida do servidor' };
-      if (data.user_info && data.user_info.auth === 1) {
-        _credentials = {
-          type: 'xtream', server: base, username: username,
-          password: password, userInfo: data.user_info, serverInfo: data.server_info
-        };
-        Storage.saveAuth(_credentials);
-        return { success: true, data: _credentials };
-      } else if (data.user_info && data.user_info.auth === 0) {
-        return { success: false, error: 'Usuário ou senha incorretos' };
+    return _xhrText(url, timeout || 45000).then(function (text) {
+      var data;
+      try { data = _parseResponse(text); }
+      catch (e) { return Promise.reject(e); }
+
+      if (!Array.isArray(data)) {
+        if (onChunk) onChunk([]);
+        return data || [];
       }
-      return { success: false, error: 'Servidor não reconhecido como Xtream Codes' };
-    }).catch(function (err) {
-      return { success: false, error: 'Falha de conexão: ' + (err.message || 'verifique o servidor') };
+
+      var total = Math.min(data.length, _MAX_ITEMS);
+      if (!onChunk) return data.slice(0, total);
+
+      var BATCH = 50;
+      var idx   = 0;
+
+      return new Promise(function (resolve) {
+        function deliverNext() {
+          if (idx >= total) { resolve(data.slice(0, total)); return; }
+          var end   = Math.min(idx + BATCH, total);
+          var batch = data.slice(idx, end);
+          idx = end;
+          if (batch.length > 0) {
+            try { onChunk(batch); } catch (e) {}
+          }
+          setTimeout(deliverNext, 0);
+        }
+
+        // Primeiro lote imediato para aparecer rápido
+        if (total > 0) {
+          var first = data.slice(0, Math.min(BATCH, total));
+          idx = first.length;
+          try { onChunk(first); } catch (e) {}
+          if (idx < total) setTimeout(deliverNext, 0);
+          else resolve(data.slice(0, total));
+        } else {
+          resolve([]);
+        }
+      });
     });
   }
 
-  /* ─── Login M3U ───────────────────────────────────────────────────────── */
+  /* ── _fetchText: playlists M3U ────────────────────────── */
+  function _fetchText(url, timeout) {
+    if (!url) return Promise.reject(new Error('URL inválida'));
+    return _xhrText(url, timeout || 60000);
+  }
+
+  /* ── Proxy de imagens ─────────────────────────────────── */
+  function getProxiedImageUrl(url) {
+    if (!url) return url;
+    return 'https://images.weserv.nl/?url=' + encodeURIComponent(url);
+  }
+
+  function getProxiedUrl(url, isStream, idx) {
+    if (!url || isStream) return url;
+    var proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+    var i = Math.max(0, Math.min(idx || 0, proxies.length - 1));
+    return proxies[i] + encodeURIComponent(url);
+  }
+
+  /* ── Login Xtream ─────────────────────────────────────── */
+  function loginXtream(server, username, password) {
+    server = (server || '').trim();
+    if (!/^https?:\/\//i.test(server)) server = 'http://' + server;
+    server = server.replace(/\/+$/, '');
+
+    var url = server + '/player_api.php?username=' + encodeURIComponent(username) +
+              '&password=' + encodeURIComponent(password);
+
+    return _fetchJSON(url, 20000).then(function (data) {
+      if (!data) return { success: false, error: 'Resposta vazia' };
+      if (data.user_info && data.user_info.auth === 0)
+        return { success: false, error: 'Usuário ou senha incorretos' };
+
+      _credentials = {
+        type: 'xtream', server: server,
+        username: username, password: password,
+        serverInfo: data.server_info || null,
+        userInfo: data.user_info || null
+      };
+      try { Storage.saveAuth(_credentials); } catch (e) {}
+      return { success: true, data: data };
+
+    }).catch(function (err) {
+      var msg = (err && err.message) || 'erro';
+      if (msg.indexOf('timeout') !== -1)  msg = 'Servidor não respondeu a tempo';
+      else if (msg.indexOf('network') !== -1) msg = 'Servidor inacessível';
+      return { success: false, error: msg };
+    });
+  }
+
+  /* ── Login M3U ────────────────────────────────────────── */
   function loginM3U(url) {
-    url = url.trim();
-    if (!url) return Promise.resolve({ success: false, error: 'URL não pode ser vazia' });
-    if (url.indexOf('http') !== 0) return Promise.resolve({ success: false, error: 'URL inválida' });
-    return _fetchText(url, 45000).then(function (text) {
+    return _fetchText(url, 30000).then(function (text) {
       if (!text || text.indexOf('#EXTM3U') === -1)
-        return { success: false, error: 'Arquivo M3U inválido ou vazio' };
+        return { success: false, error: 'Arquivo M3U inválido' };
       _credentials = { type: 'm3u', url: url };
-      Storage.saveAuth(_credentials);
-      return { success: true, data: _credentials };
+      try { Storage.saveAuth(_credentials); } catch (e) {}
+      return { success: true };
     }).catch(function (err) {
-      return { success: false, error: 'Não foi possível carregar a lista M3U: ' + (err.message || '') };
+      return { success: false, error: (err && err.message) || 'Erro ao carregar M3U' };
     });
   }
 
-  /* ─── Sessão (lê só localStorage, zero rede) ─────────────────────────── */
+  /* ── Sessão ───────────────────────────────────────────── */
   function restoreSession() {
-    var saved = Storage.getAuth();
-    if (saved) { _credentials = saved; return true; }
-    return false;
+    try {
+      var saved = Storage.getAuth();
+      if (!saved) return false;
+      _credentials = saved;
+      return true;
+    } catch (e) { return false; }
   }
 
   function getCredentials() { return _credentials; }
-  function logout() { _credentials = null; Storage.clearAuth(); }
-
-  function getProxiedUrl(url, force, proxyIdx) {
-    if (force || _needsProxy(url)) {
-      var idx = (proxyIdx !== undefined && proxyIdx < _PROXIES.length) ? proxyIdx : 0;
-      return _PROXIES[idx] + encodeURIComponent(url);
-    }
-    return url;
-  }
+  function logout() { _credentials = null; }
 
   return {
-    loginXtream: loginXtream,
-    loginM3U: loginM3U,
-    restoreSession: restoreSession,
-    getCredentials: getCredentials,
+    loginXtream: loginXtream, loginM3U: loginM3U,
+    restoreSession: restoreSession, getCredentials: getCredentials,
     logout: logout,
-    getProxiedUrl: getProxiedUrl,
-    _fetchJSON: _fetchJSON,
+    _fetchJSON: _fetchJSON, _fetchJSONStream: _fetchJSONStream,
     _fetchText: _fetchText,
-    _fetchJSONStream: _fetchJSONStream
+    getProxiedUrl: getProxiedUrl, getProxiedImageUrl: getProxiedImageUrl
   };
 })();

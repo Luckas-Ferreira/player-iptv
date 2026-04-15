@@ -277,31 +277,65 @@ var Renderer = (function () {
     return el;
   }
 
-  /* Lazy load com IntersectionObserver (rootMargin 400px = pré-carrega antes de entrar na tela) */
-  function _lazyLoadImg(imgEl, src) {
+  /* ══ FILA DE IMAGENS — substitui o _lazyLoadImg antigo ══
+     Antes: todas as imagens carregavam ao mesmo tempo → bug na TV
+     Agora: máximo 4 simultâneas via fila controlada            */
+
+  var _imgQueue   = [];
+  var _imgLoading = 0;
+  var _IMG_MAX    = 4;
+
+  function _processImgQueue() {
+    while (_imgLoading < _IMG_MAX && _imgQueue.length > 0) {
+      var entry = _imgQueue.shift();
+      var img   = entry.el;
+      if (!img || !img.parentNode) continue;
+      if (img.getAttribute('data-loaded') === '1') continue;
+
+      _imgLoading++;
+      (function (imgEl, src, ph) {
+        imgEl.onload = function () {
+          _imgLoading = Math.max(0, _imgLoading - 1);
+          imgEl.setAttribute('data-loaded', '1');
+          _processImgQueue();
+        };
+        imgEl.onerror = function () {
+          _imgLoading = Math.max(0, _imgLoading - 1);
+          try {
+            var p = imgEl.parentNode;
+            if (p) p.replaceChild(ph, imgEl);
+          } catch (e) {}
+          _processImgQueue();
+        };
+        imgEl.src = src;
+      })(img, entry.src, entry.placeholder);
+    }
+  }
+
+  function _lazyLoadImg(imgEl, src, placeholder) {
+    if (!placeholder) {
+      placeholder = createPlaceholder('live', imgEl.alt || '', false);
+    }
     imgEl.setAttribute('data-src', src);
+
     if ('IntersectionObserver' in window) {
-      var obs = new IntersectionObserver(function (entries, o) {
+      var obs = new IntersectionObserver(function (entries, observer) {
         for (var i = 0; i < entries.length; i++) {
-          var entry = entries[i];
-          if (!entry.isIntersecting) continue;
-          var img = entry.target;
-          img.src = img.getAttribute('data-src') || '';
-          img.onerror = function () {
-            var parent = img.parentNode;
-            if (parent) parent.replaceChild(createPlaceholder('live', img.alt || '', false), img);
-          };
-          o.unobserve(img);
+          if (!entries[i].isIntersecting) continue;
+          observer.unobserve(entries[i].target);
+          var el = entries[i].target;
+          var s  = el.getAttribute('data-src');
+          if (s && el.getAttribute('data-loaded') !== '1') {
+            _imgQueue.push({ el: el, src: s, placeholder: placeholder });
+            _processImgQueue();
+          }
         }
-      }, { rootMargin: '400px 0px' });
+      }, { rootMargin: '150px 0px', threshold: 0 });
       obs.observe(imgEl);
     } else {
-      /* Fallback para browsers antigos sem IntersectionObserver */
-      imgEl.src = src;
-      imgEl.onerror = function () {
-        var parent = imgEl.parentNode;
-        if (parent) parent.replaceChild(createPlaceholder('live', imgEl.alt || '', false), imgEl);
-      };
+      // TV sem IntersectionObserver: enfileira direto
+      _imgQueue.push({ el: imgEl, src: s, placeholder: placeholder });
+      _processImgQueue();
     }
   }
 

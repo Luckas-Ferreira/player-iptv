@@ -343,9 +343,9 @@ var Player = (function () {
 
     function makeExts(orig) {
       orig = (orig || 'mp4').toLowerCase().replace(/^\./, '');
-      var list = [orig];
-      if (orig !== 'mp4') list.push('mp4');
-      if (orig !== 'mkv') list.push('mkv');
+      var list = ['mp4']; // TVs antigas suportam mp4 melhor que mkv
+      if (orig !== 'mp4') list.push(orig);
+      list.push('ts'); // Último recurso
 
       var seen = {}, uniq = [];
       for (var i = 0; i < list.length; i++) {

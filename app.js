@@ -24,7 +24,8 @@ var App = (function () {
     miniItem: null,
     loadToken: 0,
     isLoggingIn: false,
-    currentEpisodes: []
+    currentEpisodes: [],
+    originalItems: []
   };
 
   /* ══════════════════════════════════════
@@ -38,6 +39,7 @@ var App = (function () {
     _bindMainEvents();
     _bindDetailEvents();
     _bindSettingsEvents();
+    _bindSearchEvents();
 
     /* Restaura sessão do localStorage SEM requisição de rede */
     if (Auth.restoreSession()) {
@@ -216,8 +218,17 @@ var App = (function () {
     var header = document.querySelector('.content-header');
     var spanel = document.getElementById('tab-search');
     var stpanel = document.getElementById('tab-settings');
+    var searchBar = document.getElementById('search-bar');
+    var searchInput = document.getElementById('header-search-input');
     var loading = document.getElementById('content-loading');
     var empty = document.getElementById('content-empty');
+
+    if (searchBar) {
+      if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
+      else searchBar.classList.add('hidden');
+    }
+    if (searchInput) searchInput.value = '';
+    _state.originalItems = [];
 
     var panels = [spanel, stpanel];
     for (var k = 0; k < panels.length; k++) {
@@ -290,6 +301,7 @@ var App = (function () {
     /* Limpa grade e estado */
     if (grid) grid.innerHTML = '';
     _state.allItems = [];
+    _state.originalItems = [];
     _state.renderedCount = 0;
     _state.isLoadingMore = false;
 
@@ -342,6 +354,7 @@ var App = (function () {
         }
         _state.allItems = finalItems;
       }
+      _state.originalItems = _state.allItems;
 
       if (!firstChunkReceived) {
         Renderer.setLoading(false);
@@ -428,6 +441,7 @@ var App = (function () {
       Renderer.setLoading(false);
       _state.renderedCount = 0;
       _loadMoreItems();
+      _state.originalItems = _state.allItems;
       Renderer.setEmpty(_state.allItems.length === 0);
     }).catch(_handleLoadError);
   }
@@ -806,6 +820,50 @@ var App = (function () {
       if (stopPlayer) { ps.classList.add('hidden'); ps.classList.remove('active'); Player.stop(); }
     }
     if (ms) ms.classList.remove('channel-picker-main');
+  }
+
+  /* ══════════════════════════════════════
+     BUSCA NO CABEÇALHO
+  ══════════════════════════════════════ */
+  function _bindSearchEvents() {
+    var btn = document.getElementById('header-search-btn');
+    var input = document.getElementById('header-search-input');
+    if (btn) btn.addEventListener('click', _handleSearch);
+    if (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.keyCode === 13) {
+          e.preventDefault();
+          _handleSearch();
+          input.blur();
+        }
+      });
+    }
+  }
+
+  function _handleSearch() {
+    var input = document.getElementById('header-search-input');
+    if (!input) return;
+    var query = input.value.trim().toLowerCase();
+
+    if (!_state.originalItems || _state.originalItems.length === 0) {
+      if (_state.allItems && _state.allItems.length > 0) {
+        _state.originalItems = _state.allItems;
+      } else { return; }
+    }
+
+    if (!query) {
+      _renderGrid(_state.originalItems);
+      return;
+    }
+
+    var filtered = [];
+    for (var i = 0; i < _state.originalItems.length; i++) {
+      var item = _state.originalItems[i];
+      if (item && item.name && item.name.toLowerCase().indexOf(query) !== -1) {
+        filtered.push(item);
+      }
+    }
+    _renderGrid(filtered);
   }
 
   function goBack() {
