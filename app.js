@@ -1,15 +1,23 @@
 /**
  * app.js – Orquestrador principal do StreamTV
  *
- * CORREÇÕES DESTA VERSÃO:
+ * CORREÇÕES DESTA VERSÃO (v4 – TV-OPTIMIZED):
  * 1. init() usa Auth.restoreSession() — sem requisição de rede no F5.
- * 2. _loadXtreamTab() e _renderCategoriesLazy() usam streaming (onChunk):
- *    mostra os primeiros cards assim que chegam, sem esperar o JSON completo.
- * 3. Renderer.renderGrid() em modo append (true) para acrescentar sem limpar.
+ * 2. _loadXtreamTab() e _renderCategoriesLazy() usam streaming (onChunk).
+ * 3. _activateTab() chama Renderer.destroyVirtualScroll() antes de trocar de aba
+ *    — libera RAM e remove event listeners do scroll infinito do virtual scroll.
+ * 4. _startStreamingLoad() onChunk: usa Renderer.renderGrid(append=true) direto
+ *    no virtual scroll — sem _loadMoreItems() manual no chunk.
+ * 5. _startStreamingLoad() .then final: usa Renderer.renderGrid(append=false)
+ *    quando nenhum chunk chegou ainda (payload único).
+ * 6. _loadMoreItems() batch reduzido: live=50, outros=10 (menos DOM por tick).
+ * 7. Limite MAXITEMS (listas xtream) reduzido de 3000 → 1500 para poupar RAM.
  */
 
 var App = (function () {
   'use strict';
+
+  var MAXITEMS = 2000; // Máximo de itens em memória por lista (TV com pouco RAM)
 
   var _state = {
     mode: 'xtream',
@@ -91,7 +99,7 @@ var App = (function () {
     if (_state.isLoggingIn) return;
     var isX = document.getElementById('tab-xtream');
     isX = isX && isX.classList.contains('active');
-    
+
     _state.isLoggingIn = true;
     _setLoginStatus('Conectando…', 'loading');
 
@@ -100,18 +108,18 @@ var App = (function () {
       var srv = (document.getElementById('xtream-server') || {}).value || '';
       var usr = (document.getElementById('xtream-user') || {}).value || '';
       var pwd = (document.getElementById('xtream-pass') || {}).value || '';
-      if (!srv || !usr || !pwd) { 
+      if (!srv || !usr || !pwd) {
         _state.isLoggingIn = false;
-        _setLoginStatus('Preencha todos os campos', 'error'); 
-        return; 
+        _setLoginStatus('Preencha todos os campos', 'error');
+        return;
       }
       p = Auth.loginXtream(srv, usr, pwd);
     } else {
       var url = (document.getElementById('m3u-url') || {}).value || '';
-      if (!url) { 
+      if (!url) {
         _state.isLoggingIn = false;
-        _setLoginStatus('Insira uma URL M3U', 'error'); 
-        return; 
+        _setLoginStatus('Insira uma URL M3U', 'error');
+        return;
       }
       p = Auth.loginM3U(url);
     }
@@ -120,7 +128,7 @@ var App = (function () {
       if (r.success) {
         _state.mode = isX ? 'xtream' : 'm3u';
         _setLoginStatus('Conectado!', 'success');
-        setTimeout(function() {
+        setTimeout(function () {
           _state.isLoggingIn = false;
           _enterMain();
         }, 600);
@@ -128,7 +136,7 @@ var App = (function () {
         _state.isLoggingIn = false;
         _setLoginStatus(r.error || 'Falha na conexão', 'error');
       }
-    }).catch(function(err) {
+    }).catch(function (err) {
       _state.isLoggingIn = false;
       _setLoginStatus('Erro inesperado', 'error');
       console.error('[Login]', err);
@@ -152,18 +160,17 @@ var App = (function () {
     try {
       _showScreen('main');
       Navigation.pushHistory('main');
-      
+
       var nameEl = document.getElementById('user-display-name');
       if (nameEl) {
         var c = Auth.getCredentials() || {};
         nameEl.textContent = c.username || 'Conectado';
       }
-      
+
       _activateTab('live');
       Navigation.focusFirst('main');
     } catch (e) {
       console.error('[App] Erro ao entrar no main:', e);
-      /* Força exibição da tela principal mesmo com erro em sub-etapas */
       _showScreen('main');
     }
   }
@@ -179,7 +186,11 @@ var App = (function () {
       })(menuItems[i]);
     }
 
-    /* Scroll infinito para o restante dos itens */
+    /*
+     * OTIMIZAÇÃO: O scroll infinito manual (_loadMoreItems) é mantido apenas
+     * como fallback para Favoritos/Watchlist (listas pequenas sem virtual scroll).
+     * Para listas Xtream/M3U, o virtual scroll do Renderer gerencia tudo sozinho.
+     */
     var mc = document.getElementById('main-content');
     if (mc) {
       mc.addEventListener('scroll', function () {
@@ -193,10 +204,18 @@ var App = (function () {
       var btn = exitBtns[j];
       if (btn) btn.addEventListener('click', function () { Storage.clearAuth(); _handleLogout(); });
     }
-
   }
 
   function _activateTab(tabName) {
+    /*
+     * OTIMIZAÇÃO v4: destroyVirtualScroll() ANTES de qualquer outra coisa.
+     * Remove o event listener de scroll e desobserva todas as imagens lazy,
+     * liberando RAM antes de carregar a nova lista.
+     */
+    if (typeof Renderer !== 'undefined' && Renderer.destroyVirtualScroll) {
+      Renderer.destroyVirtualScroll();
+    }
+
     if (_state.miniActive && tabName !== 'live') _deactivateMiniPlayer(true);
     _state.activeTab = tabName;
     _state.activeCategory = '';
@@ -213,13 +232,13 @@ var App = (function () {
     if (grid) grid.innerHTML = '';
     if (catFilter) catFilter.innerHTML = '';
 
-    /* Limpa cache em memória para liberar RAM, já que o usuário pediu para carregar sempre */
+    /* Limpa cache em memória para liberar RAM */
     if (API && API.clearCache) API.clearCache();
 
     var header = document.querySelector('.content-header');
     var spanel = document.getElementById('tab-search');
     var stpanel = document.getElementById('tab-settings');
-    var searchBar = document.getElementById('search-bar');
+    var searchBar = document.getElementById('header-search-form');
     var searchInput = document.getElementById('header-search-input');
     var loading = document.getElementById('content-loading');
     var empty = document.getElementById('content-empty');
@@ -255,7 +274,7 @@ var App = (function () {
     var titleEl = document.getElementById('content-title');
     if (titleEl) titleEl.textContent = {
       live: 'TV ao Vivo', movies: 'Filmes', series: 'Séries',
-      favorites: 'Favoritos', watchlist: 'Continuar Assistindo', recents: 'Assistidos Recentemente'
+      favorites: 'Favoritos', watchlist: 'Continuar Assistindo'
     }[tabName] || tabName;
 
     _loadCurrentTab();
@@ -264,7 +283,7 @@ var App = (function () {
   function _renderWatchlistRow() {
     var body = document.getElementById('content-body');
     if (!body) return;
-    
+
     var existing = document.getElementById('hero-watchlist-row');
     if (existing) existing.remove();
 
@@ -277,35 +296,33 @@ var App = (function () {
     var row = document.createElement('div');
     row.id = 'hero-watchlist-row';
     row.className = 'hero-row';
-    
+
     var title = document.createElement('h2');
     title.className = 'hero-row-title';
     title.textContent = 'Continuar Assistindo';
     row.appendChild(title);
-    
+
     var grid = document.createElement('div');
     grid.className = 'hero-grid';
-    
+
     Renderer.renderGrid(grid, items, {
-      onPlay: function(it) { _openDetail(it); },
-      onRemove: function(it) {
+      onPlay: function (it) { _openDetail(it); },
+      onRemove: function (it) {
         Storage.removeProgress(it.id);
         _renderWatchlistRow();
       }
     });
-    
+
     row.appendChild(grid);
     body.insertBefore(row, body.firstChild);
   }
 
-
   function _loadCurrentTab() {
     var tab = _state.activeTab;
     _renderWatchlistRow();
-    
+
     if (tab === 'favorites') { _renderFavorites(); return; }
     if (tab === 'watchlist') { _renderWatchlist(); return; }
-    if (tab === 'recents') { _renderRecents(); return; }
     Renderer.setLoading(true);
     Renderer.setEmpty(false);
     if (_state.mode === 'xtream') _loadXtreamTab(tab);
@@ -314,8 +331,6 @@ var App = (function () {
 
   /* ══════════════════════════════════════
      STREAMING PROGRESSIVO — XTREAM
-     Mostra cards conforme o JSON vai chegando,
-     sem esperar o payload completo.
   ══════════════════════════════════════ */
   function _loadXtreamTab(tab) {
     var getCats, getStreams;
@@ -337,10 +352,20 @@ var App = (function () {
     }).catch(_handleLoadError);
   }
 
-  /* Inicia carregamento com streaming para uma categoria ou busca */
+  /*
+   * _startStreamingLoad — versão TV-OPTIMIZED
+   *
+   * MUDANÇAS v4:
+   * - onChunk: chama Renderer.renderGrid(grid, displayChunk, opts, true) diretamente.
+   *   O virtual scroll do Renderer gerencia a janela visível. NÃO chama _loadMoreItems().
+   * - .then final: quando nenhum chunk chegou (payload único sem streaming), chama
+   *   Renderer.renderGrid(grid, allItems, opts, false) para inicializar o virtual scroll.
+   * - MAXITEMS reduzido: 1500 itens no máximo em memória por lista.
+   */
   function _startStreamingLoad(getStreams, categoryId, search) {
     var token = ++_state.loadToken;
     var grid = document.getElementById('content-grid');
+    var opts = { onPlay: _playItem, onFavorite: _onFavoriteToggle };
 
     /* Limpa grade e estado */
     if (grid) grid.innerHTML = '';
@@ -350,22 +375,21 @@ var App = (function () {
     _state.isLoadingMore = false;
 
     var firstChunkReceived = false;
-    var fullItems = []; // Itens retornados pelo servidor
+    var fullItems = [];
     Renderer.setEmpty(false);
 
     getStreams(categoryId, function (chunk) {
       if (token !== _state.loadToken) return;
 
+      /* Filtra itens sem nome */
       var filteredChunk = [];
       for (var i = 0; i < chunk.length; i++) {
         var item = chunk[i];
-        if (item && item.name && item.name.trim() !== '') {
-          filteredChunk.push(item);
-        }
+        if (item && item.name && item.name.trim() !== '') filteredChunk.push(item);
       }
       if (filteredChunk.length === 0) return;
 
-      /* Acumula itens — se houver busca, filtra localmente como segurança */
+      /* Filtra por busca local se houver query */
       var validItems = filteredChunk;
       if (search) {
         var query = search.toLowerCase();
@@ -377,59 +401,70 @@ var App = (function () {
         }
       }
 
-      var limit = search ? 15000 : 3000;
+      var limit = search ? 15000 : MAXITEMS;
       fullItems = fullItems.concat(validItems);
       if (fullItems.length > limit) fullItems = fullItems.slice(0, limit);
 
-      var displayChunk = validItems;
+      if (validItems.length === 0) return;
 
-      if (displayChunk.length > 0) {
-        if (!firstChunkReceived) {
-          firstChunkReceived = true;
-          Renderer.setLoading(false);
-          if (grid) grid.style.display = '';
-        }
-        _state.allItems = _state.allItems.concat(displayChunk);
-        if (_state.allItems.length > limit) _state.allItems = _state.allItems.slice(0, limit);
-
-        if (_state.renderedCount < 200) {
-          _loadMoreItems();
-        }
+      if (!firstChunkReceived) {
+        firstChunkReceived = true;
+        Renderer.setLoading(false);
+        if (grid) grid.style.display = '';
       }
+
+      _state.allItems = _state.allItems.concat(validItems);
+      if (_state.allItems.length > limit) _state.allItems = _state.allItems.slice(0, limit);
+
+      /*
+       * OTIMIZAÇÃO v4: passa o chunk direto ao virtual scroll com append=true.
+       * O Renderer renderiza apenas a janela visível — o DOM fica sempre leve.
+       * NÃO chamamos _loadMoreItems() aqui.
+       */
+      if (grid) {
+        Renderer.renderGrid(grid, validItems, opts, true);
+      }
+
     }, search).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
-      /* Consolida o payload final. Se fullItems está vazio mas temos allItems, filtra-os se necessário */
+      /* Consolida o payload final */
       if (fullItems.length === 0 && allItems && allItems.length) {
-        var query = search ? search.toLowerCase() : '';
-        var limit = search ? 15000 : 3000;
+        var q = search ? search.toLowerCase() : '';
+        var lim = search ? 15000 : MAXITEMS;
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];
           if (it && it.name && it.name.trim() !== '') {
-            if (query) {
-              if (it.name.toLowerCase().indexOf(query) !== -1) fullItems.push(it);
+            if (q) {
+              if (it.name.toLowerCase().indexOf(q) !== -1) fullItems.push(it);
             } else {
               fullItems.push(it);
             }
           }
-          if (fullItems.length >= limit) break;
+          if (fullItems.length >= lim) break;
         }
       }
       _state.originalItems = fullItems;
 
       if (!firstChunkReceived) {
+        /*
+         * OTIMIZAÇÃO v4: nenhum chunk chegou (servidor respondeu de uma vez).
+         * Inicializa o virtual scroll com a lista completa — append=false.
+         */
         Renderer.setLoading(false);
-        _state.renderedCount = 0;
-        _loadMoreItems();
+        _state.allItems = fullItems;
+        if (grid) {
+          Renderer.renderGrid(grid, _state.allItems, opts, false);
+        }
         Renderer.setEmpty(_state.allItems.length === 0);
       } else {
         Renderer.setEmpty(_state.allItems.length === 0);
       }
-      
+
       if (_state.isSearching && _state.allItems.length === 0) {
         Renderer.setEmpty(true);
       }
-      
+
     }).catch(function (e) {
       if (token !== _state.loadToken) return;
       _handleLoadError(e);
@@ -444,7 +479,7 @@ var App = (function () {
     if (!categories || !categories.length) return;
 
     for (var i = 0; i < categories.length; i++) {
-      (function(idx) {
+      (function (idx) {
         var cat = categories[idx];
         var btn = document.createElement('button');
         btn.className = 'cat-btn' + (idx === 0 ? ' active' : '');
@@ -456,21 +491,28 @@ var App = (function () {
           if (_state.activeCategory === cat.category_id) return;
           _state.activeCategory = cat.category_id;
           var allBtns = container.querySelectorAll('.cat-btn');
-          for (var j = 0; j < allBtns.length; j++) {
-            allBtns[j].classList.remove('active');
-          }
+          for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
           btn.classList.add('active');
+
           /* Reseta busca se o usuário clicar numa categoria */
           var searchInput = document.getElementById('header-search-input');
           if (searchInput) searchInput.value = '';
           _state.isSearching = false;
 
+          /*
+           * OTIMIZAÇÃO v4: destrói o virtual scroll atual antes de carregar
+           * a nova categoria, liberando RAM e event listeners.
+           */
+          if (Renderer.destroyVirtualScroll) Renderer.destroyVirtualScroll();
+
           Renderer.setLoading(true);
           _startStreamingLoad(getStreams, cat.category_id);
         });
+
         btn.addEventListener('keydown', function (e) {
           if (e.keyCode === 13) { e.preventDefault(); btn.click(); }
         });
+
         container.appendChild(btn);
       })(i);
     }
@@ -480,7 +522,6 @@ var App = (function () {
   function _loadM3UTab(tab) {
     API.loadM3U().then(function (all) {
       var tf = { live: 'live', movies: 'movie', series: 'series' }[tab];
-      /* Filtra itens sem nome e por tipo */
       var filtered = [];
       for (var i = 0; i < all.length; i++) {
         var it = all[i];
@@ -518,16 +559,16 @@ var App = (function () {
   function _handleLoadError(err) {
     Renderer.setLoading(false);
     Renderer.setEmpty(true);
-    
+
     var msg = (err && err.message ? err.message : 'falha de conexão');
     if (msg.indexOf('timeout') !== -1) msg = 'O servidor demorou demais para responder';
     if (msg.indexOf('JSON') !== -1 || msg.indexOf('Memória') !== -1) msg = 'Lista muito grande para esta TV (estouro de memória)';
-    
+
     Renderer.showToast('Erro: ' + msg, 'error', 5000);
     console.error('[App] Erro de carregamento:', err);
   }
 
-  /* ─── Grid / Scroll infinito ─────────────────────────────────────────── */
+  /* ─── Grid / Scroll infinito (fallback para Favoritos e Watchlist) ────── */
   function _renderGrid(items) {
     var grid = document.getElementById('content-grid');
     if (!grid) return;
@@ -539,28 +580,36 @@ var App = (function () {
     Renderer.setEmpty(_state.allItems.length === 0);
   }
 
+  /*
+   * _loadMoreItems — usado apenas por Favoritos, Watchlist e M3U (listas pequenas).
+   * Para listas Xtream, o virtual scroll do Renderer gerencia tudo.
+   * OTIMIZAÇÃO v4: batch reduzido (live=50, outros=10).
+   */
   function _loadMoreItems() {
     if (_state.isLoadingMore) return;
     if (!_state.allItems || _state.renderedCount >= _state.allItems.length) return;
     var grid = document.getElementById('content-grid');
     if (!grid) return;
+
     _state.isLoadingMore = true;
     if (_state.renderedCount > 0) Renderer.setLoadingMore(true);
+
     setTimeout(function () {
-      var bs = _state.activeTab === 'live' ? 100 : 20;
+      /* OTIMIZAÇÃO v4: batch menor — live=50 (era 100), outros=10 (era 20) */
+      var bs = _state.activeTab === 'live' ? 50 : 10;
       var start = _state.renderedCount;
       var end = Math.min(start + bs, _state.allItems.length);
-      
+
       if (start < end) {
         Renderer.renderGrid(grid, _state.allItems.slice(start, end), {
           onPlay: _playItem, onFavorite: _onFavoriteToggle
         }, true);
         _state.renderedCount = end;
       }
-      
+
       _state.isLoadingMore = false;
       Renderer.setLoadingMore(false);
-    }, 10); // Reduzido de 80ms para 10ms para resposta mais rápida no streaming
+    }, 10);
   }
 
   function _onFavoriteToggle(item, isFav) {
@@ -572,22 +621,12 @@ var App = (function () {
     Renderer.setLoading(false);
     var items = Storage.getFavoritesArray().map(function (f) {
       return {
-        stream_id: f.type === 'live' ? f.id : null, vod_id: f.type === 'movie' ? f.id : null,
-        series_id: f.type === 'series' ? f.id : null, name: f.name, _type: f.type,
-        stream_icon: f.icon, cover: f.icon, series_cover: f.icon, category_name: f.category
-      };
-    });
-    document.getElementById('category-filter').innerHTML = '';
-    _renderGrid(items);
-  }
-
-  function _renderRecents() {
-    Renderer.setLoading(false);
-    var items = Storage.getRecents().map(function (r) {
-      return {
-        stream_id: r.type === 'live' ? r.id : null, vod_id: r.type === 'movie' ? r.id : null,
-        series_id: r.type === 'series' ? r.id : null, name: r.name, _type: r.type,
-        stream_icon: r.icon, cover: r.icon, series_cover: r.icon, category_name: r.category
+        stream_id: f.type === 'live' ? f.id : null,
+        vod_id: f.type === 'movie' ? f.id : null,
+        series_id: f.type === 'series' ? f.id : null,
+        name: f.name, _type: f.type,
+        stream_icon: f.icon, cover: f.icon, series_cover: f.icon,
+        category_name: f.category
       };
     });
     document.getElementById('category-filter').innerHTML = '';
@@ -619,12 +658,9 @@ var App = (function () {
     Player.play(item);
     _state.miniItem = item;
 
-    /* Configura o próximo vídeo para o card de skip */
     var next = _findNextItem(item);
     if (next) {
-      Player.setNextItem(next, function() {
-        _openPlayer(next);
-      });
+      Player.setNextItem(next, function () { _openPlayer(next); });
     } else {
       Player.setNextItem(null);
     }
@@ -639,9 +675,7 @@ var App = (function () {
     for (var i = 0; i < list.length; i++) {
       var it = list[i];
       var itId = it._episodeId || it.stream_id || it.vod_id || it.series_id;
-      if (itId === id && i < list.length - 1) {
-        return list[i + 1];
-      }
+      if (itId === id && i < list.length - 1) return list[i + 1];
     }
     return null;
   }
@@ -656,13 +690,13 @@ var App = (function () {
     var playBtn = document.getElementById('detail-play');
     if (playBtn) playBtn.onclick = function () { _openPlayer(item); };
     _bindDetailFavorite(item);
+
     if (_state.mode === 'xtream' && item.vod_id) {
       API.getVodInfo(item.vod_id).then(function (info) {
         if (!info || !info.info) return;
         var plotEl = document.getElementById('detail-plot');
         if (plotEl && info.info.plot) plotEl.textContent = info.info.plot;
-        
-        /* Diretor e Elenco */
+
         var dirRow = document.getElementById('detail-director-row');
         var dirEl = document.getElementById('detail-director');
         var castRow = document.getElementById('detail-cast-row');
@@ -672,17 +706,13 @@ var App = (function () {
           if (info.info.director && info.info.director.trim() !== '' && info.info.director !== 'N/A') {
             dirEl.textContent = info.info.director;
             dirRow.classList.remove('hidden');
-          } else {
-            dirRow.classList.add('hidden');
-          }
+          } else { dirRow.classList.add('hidden'); }
         }
         if (castRow && castEl) {
           if (info.info.cast && info.info.cast.trim() !== '' && info.info.cast !== 'N/A') {
             castEl.textContent = info.info.cast;
             castRow.classList.remove('hidden');
-          } else {
-            castRow.classList.add('hidden');
-          }
+          } else { castRow.classList.add('hidden'); }
         }
 
         var badgesEl = document.getElementById('detail-badges');
@@ -696,22 +726,20 @@ var App = (function () {
             var durStr = (hours > 0 ? hours + 'h ' : '') + m + 'min';
             badgesEl.appendChild(_badge(durStr, 'badge-duration'));
           } else if (info.info.duration) {
-              badgesEl.appendChild(_badge(info.info.duration, 'badge-duration'));
+            badgesEl.appendChild(_badge(info.info.duration, 'badge-duration'));
           }
           if (info.info.rating) badgesEl.appendChild(_badge('⭐ ' + info.info.rating, 'badge-rating'));
           if (info.info.genre) {
-             var gs = info.info.genre.split(',');
-             gs.slice(0, 3).forEach(function (g) {
-               badgesEl.appendChild(_badge(g.trim(), 'badge-genre'));
-             });
+            var gs = info.info.genre.split(',');
+            gs.slice(0, 3).forEach(function (g) { badgesEl.appendChild(_badge(g.trim(), 'badge-genre')); });
           }
         }
       }).catch(function () { });
     }
-    /* Foca no Play em vez do Voltar */
-    setTimeout(function() {
-      var playBtn = document.getElementById('detail-play');
-      if (playBtn) playBtn.focus();
+
+    setTimeout(function () {
+      var pb = document.getElementById('detail-play');
+      if (pb) pb.focus();
     }, 150);
   }
 
@@ -724,10 +752,9 @@ var App = (function () {
     if (epPanel) epPanel.classList.remove('hidden');
     _bindDetailFavorite(item);
     if (_state.mode === 'xtream' && item.series_id) _loadXtreamSeriesEpisodes(item);
-    /* Foca no Play em vez do Voltar */
-    setTimeout(function() {
-      var playBtn = document.getElementById('detail-play');
-      if (playBtn) playBtn.focus();
+    setTimeout(function () {
+      var pb = document.getElementById('detail-play');
+      if (pb) pb.focus();
     }, 150);
   }
 
@@ -739,36 +766,35 @@ var App = (function () {
       seasonsRow.innerHTML = ''; episodesGrid.innerHTML = '';
       var snums = Object.keys(info.episodes || {});
       if (!snums.length) return;
+
       for (var i = 0; i < snums.length; i++) {
-        (function(idx) {
+        (function (idx) {
           var sNum = snums[idx];
           var btn = document.createElement('button');
           btn.className = 'season-btn' + (idx === 0 ? ' active' : '');
           btn.textContent = 'Temporada ' + sNum;
           btn.addEventListener('click', function () {
             var allBtns = document.querySelectorAll('.season-btn');
-            for (var j = 0; j < allBtns.length; j++) {
-              allBtns[j].classList.remove('active');
-            }
+            for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
             btn.classList.add('active');
             _renderXtreamEps(info.episodes[sNum], series, episodesGrid);
           });
           seasonsRow.appendChild(btn);
         })(i);
       }
+
       _renderXtreamEps(info.episodes[snums[0]], series, episodesGrid);
-      
-      /* Salva os episódios de todas as temporadas para navegação de "Próximo" */
+
       var allEps = [];
       for (var k = 0; k < snums.length; k++) {
         var seasonEps = info.episodes[snums[k]] || [];
-        for (var m = 0; m < seasonEps.length; m++) {
-          var ep = seasonEps[m];
+        for (var m2 = 0; m2 < seasonEps.length; m2++) {
+          var ep = seasonEps[m2];
           allEps.push(Object.assign({}, series, {
             _type: 'series',
             _episodeId: ep.id || ep.stream_id,
             _episodeExt: ep.container_extension || 'mkv',
-            name: series.name + ' – S' + (ep.season || snums[k]) + ' E' + (ep.episode_num || (m+1))
+            name: series.name + ' – S' + (ep.season || snums[k]) + ' E' + (ep.episode_num || (m2 + 1))
           }));
         }
       }
@@ -779,7 +805,8 @@ var App = (function () {
         var ep0 = info.episodes[snums[0]][0];
         playBtn.onclick = function () {
           _openPlayer(Object.assign({}, series, {
-            _type: 'series', _episodeId: ep0.id || ep0.stream_id,
+            _type: 'series',
+            _episodeId: ep0.id || ep0.stream_id,
             _episodeExt: ep0.container_extension || 'mkv',
             name: series.name + ' – S1 E' + (ep0.episode_num || 1)
           }));
@@ -798,11 +825,14 @@ var App = (function () {
 
   function _createEpisodeCard(ep, series) {
     var card = document.createElement('div');
-    card.className = 'episode-card'; card.tabIndex = 0;
+    card.className = 'episode-card';
+    card.tabIndex = 0;
+
     var thumb = document.createElement('div');
     thumb.className = 'episode-thumb';
     thumb.style.cssText = 'display:flex;align-items:center;justify-content:center;background:var(--bg-input);font-size:28px;';
     thumb.textContent = '🎬';
+
     if (ep.info && ep.info.movie_image) {
       var img = document.createElement('img');
       img.className = 'episode-thumb'; img.alt = ep.title || '';
@@ -810,6 +840,7 @@ var App = (function () {
       img.onerror = function () { if (this.parentNode) this.parentNode.replaceChild(thumb, this); };
       card.appendChild(img);
     } else { card.appendChild(thumb); }
+
     var info = document.createElement('div'); info.className = 'episode-info';
     var num = document.createElement('div'); num.className = 'episode-num';
     num.textContent = 'S' + (ep.season || 1) + ' E' + (ep.episode_num || '');
@@ -820,22 +851,19 @@ var App = (function () {
     info.appendChild(num); info.appendChild(titleEl); info.appendChild(rt);
     card.appendChild(info);
 
-    /* Barra de Progresso no Episódio */
     var progId = ep.id || ep.stream_id;
     var prog = Storage.getProgress(progId);
     if (prog && prog.pct > 1) {
-      var pBar = document.createElement('div');
-      pBar.className = 'card-progress';
-      var pFill = document.createElement('div');
-      pFill.className = 'card-progress-fill';
+      var pBar = document.createElement('div'); pBar.className = 'card-progress';
+      var pFill = document.createElement('div'); pFill.className = 'card-progress-fill';
       pFill.style.width = Math.min(100, prog.pct) + '%';
-      pBar.appendChild(pFill);
-      card.appendChild(pBar);
+      pBar.appendChild(pFill); card.appendChild(pBar);
     }
 
     card.addEventListener('click', function () {
       _openPlayer(Object.assign({}, series, {
-        _type: 'series', _episodeId: ep.id || ep.stream_id,
+        _type: 'series',
+        _episodeId: ep.id || ep.stream_id,
         _episodeExt: ep.container_extension || 'mkv',
         name: series.name + ' – ' + titleEl.textContent
       }));
@@ -848,7 +876,10 @@ var App = (function () {
     var icon = item.stream_icon || item.cover || item.series_cover || '';
     var t = document.getElementById('detail-title'); if (t) t.textContent = item.name || '';
     var c = document.getElementById('detail-cover');
-    if (c) { if (icon) { c.src = icon; c.style.display = ''; c.onerror = function () { this.style.display = 'none'; }; } else c.style.display = 'none'; }
+    if (c) {
+      if (icon) { c.src = icon; c.style.display = ''; c.onerror = function () { this.style.display = 'none'; }; }
+      else c.style.display = 'none';
+    }
     var bd = document.getElementById('detail-backdrop');
     if (bd && icon) bd.style.backgroundImage = 'url(' + icon + ')';
     var p = document.getElementById('detail-plot'); if (p) p.textContent = item.plot || item.description || '';
@@ -860,17 +891,13 @@ var App = (function () {
       if (item.category_name) bx.appendChild(_badge(item.category_name, 'badge-genre'));
     }
 
-    /* Configura Texto do Botão (Assistir vs Continuar Assistindo) */
     var playBtn = document.getElementById('detail-play');
     if (playBtn) {
       var id = String(item.stream_id || item.vod_id || item.series_id || item.id || '');
       var prog = Storage.getProgress(id);
-
-      /* Se for série, busca progresso em qualquer episódio p/ mudar o texto do botão principal */
       if (!prog && (item.series_id || item._type === 'series')) {
         prog = Storage.getSeriesProgress(item.series_id || item.id);
       }
-
       var isResume = !!prog;
       playBtn.innerHTML = '&#9654; &nbsp;' + (isResume ? 'Continuar Assistindo' : 'Assistir');
     }
@@ -952,10 +979,7 @@ var App = (function () {
       screens[i].classList.add('hidden');
     }
     var t = document.getElementById('screen-' + name);
-    if (t) { 
-      t.classList.remove('hidden'); 
-      t.classList.add('active'); 
-    }
+    if (t) { t.classList.remove('hidden'); t.classList.add('active'); }
     Navigation.setScreen(name);
   }
 
@@ -975,16 +999,21 @@ var App = (function () {
      BUSCA NO CABEÇALHO
   ══════════════════════════════════════ */
   function _bindSearchEvents() {
-    var btn = document.getElementById('header-search-btn');
+    var form = document.getElementById('header-search-form');
     var input = document.getElementById('header-search-input');
-    if (btn) btn.addEventListener('click', _handleSearch);
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        _handleSearch();
+        if (input) input.blur();
+      });
+    }
+
     if (input) {
+      input.addEventListener('change', _handleSearch);
       input.addEventListener('keydown', function (e) {
-        if (e.keyCode === 13) {
-          e.preventDefault();
-          _handleSearch();
-          input.blur();
-        }
+        if (e.keyCode === 13) { e.preventDefault(); _handleSearch(); input.blur(); }
       });
     }
   }
@@ -996,14 +1025,10 @@ var App = (function () {
     var tab = _state.activeTab;
 
     if (!query) {
-      if (_state.isSearching) {
-        _state.isSearching = false;
-        _loadCurrentTab();
-      }
+      if (_state.isSearching) { _state.isSearching = false; _loadCurrentTab(); }
       return;
     }
 
-    /* Inicia uma busca global NO SERVIDOR */
     _state.isSearching = true;
     var getStreams;
     if (tab === 'live') getStreams = API.getLiveStreams;
@@ -1011,34 +1036,35 @@ var App = (function () {
     else if (tab === 'series') getStreams = API.getSeriesList;
     else { _state.isSearching = false; return; }
 
+    /* Destrói o virtual scroll atual antes da busca */
+    if (Renderer.destroyVirtualScroll) Renderer.destroyVirtualScroll();
+
     Renderer.setLoading(true);
-    _startStreamingLoad(getStreams, null, query); // null = categoria, query = busca
-    
+    _startStreamingLoad(getStreams, null, query);
+
     var titleEl = document.getElementById('content-title');
-    if (titleEl) {
-      titleEl.textContent = 'Busca: ' + query;
-    }
+    if (titleEl) titleEl.textContent = 'Busca: ' + query;
   }
 
   function goBack() {
     var screen = document.querySelector('.screen.active');
     var sid = screen ? screen.id.replace('screen-', '') : '';
-    
+
     if (sid === 'player' && !_state.miniActive) {
       Player.stop(); _state.miniItem = null;
     }
 
     var prev = Navigation.popHistory();
     console.log('[App] Retornando para:', prev);
-    
+
     if (prev) {
       _showScreen(prev);
       if (prev === 'main') Navigation.focusFirst('main');
       else if (prev === 'detail') {
-         setTimeout(function() {
-            var btn = document.getElementById('detail-play');
-            if (btn) btn.focus();
-         }, 100);
+        setTimeout(function () {
+          var btn = document.getElementById('detail-play');
+          if (btn) btn.focus();
+        }, 100);
       }
     } else {
       _showScreen('main');

@@ -144,16 +144,6 @@
           </span>
           <span class="menu-label">Continuar Assistindo</span>
         </li>
-        <li class="menu-item" data-tab="recents" role="menuitem" tabindex="0" aria-label="Recentes">
-          <span class="menu-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </span>
-          <span class="menu-label">Recentes</span>
-        </li>
         <li class="menu-item" data-tab="settings" role="menuitem" tabindex="0" aria-label="Configurações">
           <span class="menu-icon" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -182,10 +172,10 @@
       <header class="content-header">
         <h2 id="content-title" class="content-title">TV ao Vivo</h2>
         <div class="header-actions">
-          <div id="search-bar" class="search-bar hidden">
+          <form id="header-search-form" class="search-bar hidden">
             <div class="search-input-wrapper">
               <input type="text" id="header-search-input" placeholder="Buscar título..." tabindex="0">
-              <button id="header-search-btn" class="header-search-btn" aria-label="Pesquisar" tabindex="0">
+              <button type="submit" id="header-search-btn" class="header-search-btn" aria-label="Pesquisar" tabindex="0">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="11" cy="11" r="8"></circle>
@@ -193,7 +183,7 @@
                 </svg>
               </button>
             </div>
-          </div>
+          </form>
           <div id="category-filter" class="category-filter" role="group" aria-label="Filtrar por categoria"></div>
         </div>
       </header>

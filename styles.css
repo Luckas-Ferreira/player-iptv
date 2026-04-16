@@ -1557,7 +1557,7 @@ select {
     gap: 12px;
   }
 
-  w .episode-card {
+  .episode-card {
     width: auto;
     margin-right: 0;
     margin-bottom: 0;
