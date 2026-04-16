@@ -1,6 +1,15 @@
 /**
  * auth.js – REESCRITO para TV antiga (Panasonic)
  * Usa XMLHttpRequest em vez de fetch() + ReadableStream
+ *
+ * CORREÇÕES v2:
+ * 1. Timeout de _fetchJSONStream: 45s → 120s
+ *    Listas grandes (séries, filmes) podem demorar 60-90s para chegar.
+ * 2. Timeout de _fetchJSON: 20s → 30s (categorias podem ser lentas)
+ * 3. Timeout de login: 20s → 30s
+ * 4. getProxiedImageUrl: REMOVIDO proxy images.weserv.nl
+ *    Tags <img> NÃO precisam de proxy CORS — o browser carrega qualquer URL.
+ *    O proxy estava causando 30+ requisições extras que travavam a TV.
  */
 var Auth = (function () {
   'use strict';
@@ -13,12 +22,12 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var done = false;
       var xhr = new XMLHttpRequest();
-      var ms = timeout || 35000;
+      var ms = timeout || 120000; /* padrão 2 minutos */
 
       var timer = setTimeout(function () {
         if (done) return;
         done = true;
-        try { xhr.abort(); } catch (e) {}
+        try { xhr.abort(); } catch (e) { }
         reject(new Error('timeout'));
       }, ms);
 
@@ -63,7 +72,7 @@ var Auth = (function () {
     var t = text.trim();
     if (!t) return null;
 
-    // Detecta base64: começa com '=' ou não tem [ nem {
+    /* Detecta base64: começa com '=' ou não tem [ nem { */
     var looksB64 = t.charAt(0) === '=';
     if (!looksB64 && t.charAt(0) !== '[' && t.charAt(0) !== '{') {
       var sample = t.replace(/[\r\n]/g, '').substring(0, 80);
@@ -88,20 +97,19 @@ var Auth = (function () {
   /* ── _fetchJSON: respostas pequenas (categorias, info) ── */
   function _fetchJSON(url, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
-    return _xhrText(url, timeout || 20000).then(function (text) {
+    return _xhrText(url, timeout || 30000).then(function (text) { /* AUMENTADO: 20s → 30s */
       return _parseResponse(text);
     });
   }
 
   /* ── _fetchJSONStream: listas grandes (filmes, séries) ───
-     Estratégia TV-compatível:
-     1. Uma requisição XHR baixa TUDO de uma vez
-     2. Entrega em lotes de 50 via setTimeout(0) para não
-        travar a thread da TV enquanto renderiza os cards    */
+     CORREÇÃO: timeout aumentado de 45s → 120s.
+     Listas com milhares de itens podem demorar 60-90s dependendo
+     da velocidade do servidor e do tamanho do payload.              */
   function _fetchJSONStream(url, onChunk, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
 
-    return _xhrText(url, timeout || 45000).then(function (text) {
+    return _xhrText(url, timeout || 120000).then(function (text) { /* AUMENTADO: 45s → 120s */
       var data;
       try { data = _parseResponse(text); }
       catch (e) { return Promise.reject(e); }
@@ -115,25 +123,24 @@ var Auth = (function () {
       if (!onChunk) return data.slice(0, total);
 
       var BATCH = 50;
-      var idx   = 0;
+      var idx = 0;
 
       return new Promise(function (resolve) {
         function deliverNext() {
           if (idx >= total) { resolve(data.slice(0, total)); return; }
-          var end   = Math.min(idx + BATCH, total);
+          var end = Math.min(idx + BATCH, total);
           var batch = data.slice(idx, end);
           idx = end;
           if (batch.length > 0) {
-            try { onChunk(batch); } catch (e) {}
+            try { onChunk(batch); } catch (e) { }
           }
           setTimeout(deliverNext, 0);
         }
 
-        // Primeiro lote imediato para aparecer rápido
         if (total > 0) {
           var first = data.slice(0, Math.min(BATCH, total));
           idx = first.length;
-          try { onChunk(first); } catch (e) {}
+          try { onChunk(first); } catch (e) { }
           if (idx < total) setTimeout(deliverNext, 0);
           else resolve(data.slice(0, total));
         } else {
@@ -146,13 +153,25 @@ var Auth = (function () {
   /* ── _fetchText: playlists M3U ────────────────────────── */
   function _fetchText(url, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
-    return _xhrText(url, timeout || 60000);
+    return _xhrText(url, timeout || 120000); /* AUMENTADO: 60s → 120s */
   }
 
   /* ── Proxy de imagens ─────────────────────────────────── */
+  /*
+   * CORREÇÃO: getProxiedImageUrl agora retorna a URL ORIGINAL sem proxy.
+   *
+   * Por quê removemos o proxy images.weserv.nl?
+   * ─────────────────────────────────────────────
+   * Tags <img src="..."> NÃO têm restrição de CORS no browser.
+   * O proxy só seria necessário para chamadas XHR/fetch de imagens,
+   * o que não fazemos — usamos apenas <img>.
+   *
+   * Na prática, o proxy estava causando 30-50 requisições extras para
+   * images.weserv.nl que falhavam na TV (timeout ou bloqueio de rede),
+   * gerando uma "tempestade" de conexões que travava o browser da TV.
+   */
   function getProxiedImageUrl(url) {
-    if (!url) return url;
-    return 'https://images.weserv.nl/?url=' + encodeURIComponent(url);
+    return url; /* Retorna direto — sem proxy para imagens */
   }
 
   function getProxiedUrl(url, isStream, idx) {
@@ -169,9 +188,9 @@ var Auth = (function () {
     server = server.replace(/\/+$/, '');
 
     var url = server + '/player_api.php?username=' + encodeURIComponent(username) +
-              '&password=' + encodeURIComponent(password);
+      '&password=' + encodeURIComponent(password);
 
-    return _fetchJSON(url, 20000).then(function (data) {
+    return _fetchJSON(url, 30000).then(function (data) { /* AUMENTADO: 20s → 30s */
       if (!data) return { success: false, error: 'Resposta vazia' };
       if (data.user_info && data.user_info.auth === 0)
         return { success: false, error: 'Usuário ou senha incorretos' };
@@ -182,12 +201,11 @@ var Auth = (function () {
         serverInfo: data.server_info || null,
         userInfo: data.user_info || null
       };
-      try { Storage.saveAuth(_credentials); } catch (e) {}
+      try { Storage.saveAuth(_credentials); } catch (e) { }
       return { success: true, data: data };
-
     }).catch(function (err) {
       var msg = (err && err.message) || 'erro';
-      if (msg.indexOf('timeout') !== -1)  msg = 'Servidor não respondeu a tempo';
+      if (msg.indexOf('timeout') !== -1) msg = 'Servidor não respondeu a tempo';
       else if (msg.indexOf('network') !== -1) msg = 'Servidor inacessível';
       return { success: false, error: msg };
     });
@@ -195,11 +213,11 @@ var Auth = (function () {
 
   /* ── Login M3U ────────────────────────────────────────── */
   function loginM3U(url) {
-    return _fetchText(url, 30000).then(function (text) {
+    return _fetchText(url, 120000).then(function (text) { /* AUMENTADO: 30s → 120s */
       if (!text || text.indexOf('#EXTM3U') === -1)
         return { success: false, error: 'Arquivo M3U inválido' };
       _credentials = { type: 'm3u', url: url };
-      try { Storage.saveAuth(_credentials); } catch (e) {}
+      try { Storage.saveAuth(_credentials); } catch (e) { }
       return { success: true };
     }).catch(function (err) {
       return { success: false, error: (err && err.message) || 'Erro ao carregar M3U' };

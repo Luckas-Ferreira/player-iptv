@@ -1,12 +1,15 @@
 /**
  * renderer.js – Renderização de cards, grades e componentes visuais
  *
- * MUDANÇAS:
- * 1. renderGrid(container, items, callbacks, append?)
- *    append=true → acrescenta ao grid existente sem limpar (usado no streaming).
- * 2. setLoadingMore(show) — spinner de "carregando mais" no rodapé da grade.
- * 3. _lazyLoadImg usa IntersectionObserver com rootMargin generoso (400px)
- *    para pré-carregar imagens antes de entrar na tela.
+ * CORREÇÕES v3:
+ * 1. BUG CRÍTICO: _lazyLoadImg fallback (sem IntersectionObserver) usava
+ *    variável 's' que não existia nesse escopo → imagens nunca carregavam na TV.
+ *    Corrigido para usar 'src' (parâmetro da função).
+ * 2. Observer global: antes criava um new IntersectionObserver() por imagem
+ *    (centenas de objetos). Agora usa UM observer compartilhado → muito mais leve.
+ * 3. _IMG_MAX reduzido de 4 → 2 para TVs lentas como a Panasonic.
+ * 4. rootMargin aumentado para 400px → pré-carrega imagens antes de entrar na tela.
+ * 5. Timeout de 60ms entre lotes de imagens para não travar a thread da TV.
  */
 
 var Renderer = (function () {
@@ -20,7 +23,7 @@ var Renderer = (function () {
     var type = item._type || 'live';
     var category = item.category_name || item.group || '';
     var icon = item.stream_icon || item.cover || item.series_cover || '';
-    
+
     /* Proxy de Imagens para TVs antigas (evita problemas de TLS e CORS) */
     if (icon && icon.indexOf('http') === 0 && typeof Auth !== 'undefined' && Auth.getProxiedImageUrl) {
       icon = Auth.getProxiedImageUrl(icon);
@@ -137,8 +140,7 @@ var Renderer = (function () {
   }
 
   /* ═══════════════════════ GRADE ═══════════════════════
-     append=true → adiciona ao container sem limpar o HTML existente.
-     Usado pelo streaming progressivo para acrescentar lotes.           */
+     append=true → adiciona ao container sem limpar o HTML existente. */
 
   function renderGrid(container, items, callbacks, append) {
     if (!append) container.innerHTML = '';
@@ -158,7 +160,6 @@ var Renderer = (function () {
     frag.appendChild(allBtn);
     for (var i = 0; i < categories.length; i++) {
       var cat = categories[i];
-      // Remove caracteres especiais que podem não renderizar em TVs antigas
       var cleanName = (cat.category_name || '').replace(/[^\x20-\x7EÀ-ž\s]/g, '').trim();
       var btn = _el('button', { className: 'cat-btn', textContent: cleanName, tabIndex: 0 });
       btn.dataset.catId = cat.category_id;
@@ -185,34 +186,34 @@ var Renderer = (function () {
     var labels = { live: 'Ao Vivo', movie: 'Filme', series: 'Série' };
     var cls = { live: 'type-live', movie: 'type-movie', series: 'type-series' };
     for (var i = 0; i < items.length; i++) {
-        (function(item) {
-          var type = item._type || 'live';
-          var icon = item.stream_icon || item.cover || item.series_cover || '';
-          var row = _el('div', { className: 'search-result-item', role: 'listitem', tabIndex: 0, 'aria-label': item.name });
-          var thumb;
-          if (icon) {
-            thumb = _el('img', { className: 'search-result-thumb', alt: item.name, loading: 'lazy' });
-            _lazyLoadImg(thumb, icon);
-          } else {
-            thumb = _el('div', {
-              className: 'search-result-thumb',
-              style: 'display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg-input);border-radius:8px;'
-            });
-            thumb.textContent = type === 'live' ? '📺' : type === 'movie' ? '🎬' : '🎭';
-          }
-          row.appendChild(thumb);
-          var info = _el('div', { className: 'search-result-info' });
-          var titleEl = _el('div', { className: 'search-result-title', textContent: item.name });
-          var metaEl = _el('div', { className: 'search-result-meta', textContent: item.category_name || item.group || '' });
-          info.appendChild(titleEl); info.appendChild(metaEl);
-          row.appendChild(info);
-          row.appendChild(_el('div', { className: 'search-result-type ' + (cls[type] || 'type-live'), textContent: labels[type] || 'Live' }));
-          
-          row.addEventListener('click', function () { if (onPlay) onPlay(item); });
-          row.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); if (onPlay) onPlay(item); } });
-          
-          frag.appendChild(row);
-        })(items[i]);
+      (function (item) {
+        var type = item._type || 'live';
+        var icon = item.stream_icon || item.cover || item.series_cover || '';
+        var row = _el('div', { className: 'search-result-item', role: 'listitem', tabIndex: 0, 'aria-label': item.name });
+        var thumb;
+        if (icon) {
+          thumb = _el('img', { className: 'search-result-thumb', alt: item.name, loading: 'lazy' });
+          _lazyLoadImg(thumb, icon);
+        } else {
+          thumb = _el('div', {
+            className: 'search-result-thumb',
+            style: 'display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg-input);border-radius:8px;'
+          });
+          thumb.textContent = type === 'live' ? 'TV' : type === 'movie' ? 'F' : 'S';
+        }
+        row.appendChild(thumb);
+        var info = _el('div', { className: 'search-result-info' });
+        var titleEl = _el('div', { className: 'search-result-title', textContent: item.name });
+        var metaEl = _el('div', { className: 'search-result-meta', textContent: item.category_name || item.group || '' });
+        info.appendChild(titleEl); info.appendChild(metaEl);
+        row.appendChild(info);
+        row.appendChild(_el('div', { className: 'search-result-type ' + (cls[type] || 'type-live'), textContent: labels[type] || 'Live' }));
+
+        row.addEventListener('click', function () { if (onPlay) onPlay(item); });
+        row.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); if (onPlay) onPlay(item); } });
+
+        frag.appendChild(row);
+      })(items[i]);
     }
     container.appendChild(frag);
   }
@@ -246,15 +247,13 @@ var Renderer = (function () {
     if (show) el.classList.remove('hidden'); else el.classList.add('hidden');
   }
 
-  /* Spinner de "carregando mais" no rodapé da grade */
   function setLoadingMore(show) {
     var el = document.getElementById('loading-more');
     if (!el) {
-      /* Cria o elemento se não existir */
       el = document.createElement('div');
       el.id = 'loading-more';
       el.style.cssText = 'text-align:center;padding:16px;color:var(--text-secondary,#aaa);font-size:14px;';
-      el.textContent = 'Carregando mais…';
+      el.textContent = 'Carregando mais\u2026';
       var grid = document.getElementById('content-grid');
       if (grid && grid.parentNode) grid.parentNode.insertBefore(el, grid.nextSibling);
     }
@@ -277,35 +276,85 @@ var Renderer = (function () {
     return el;
   }
 
-  /* ══ FILA DE IMAGENS — substitui o _lazyLoadImg antigo ══
-     Antes: todas as imagens carregavam ao mesmo tempo → bug na TV
-     Agora: máximo 4 simultâneas via fila controlada            */
+  /* ══════════════════════════════════════════════════════════
+     FILA DE IMAGENS — TV-safe lazy loading
+     ──────────────────────────────────────────────────────────
+     CORREÇÃO PRINCIPAL:
+     - Bug crítico corrigido: 'src: s' → 'src: src' no fallback sem
+       IntersectionObserver. Antes, 's' era undefined → nenhuma imagem
+       carregava na TV Panasonic.
+     - Observer global: 1 único IntersectionObserver para todas as imagens,
+       em vez de criar um novo por card (economiza muita memória na TV).
+     - _IMG_MAX reduzido de 4 → 2: TV antiga trava com muitas requisições
+       de imagem simultâneas.
+     - rootMargin 400px: pré-carrega imagens antes de entrarem na tela,
+       dando mais tempo para o browser lento da TV baixar a imagem.
+     - Delay de 60ms entre lotes: evita engasgar a thread principal da TV.
+  ══════════════════════════════════════════════════════════ */
 
-  var _imgQueue   = [];
+  var _imgQueue = [];
   var _imgLoading = 0;
-  var _IMG_MAX    = 4;
+  var _IMG_MAX = 2;          /* REDUZIDO: 4 → 2 para TVs lentas */
+  var _imgTimer = null;       /* Timer para processar fila com delay */
+
+  /* Observer global único — criado uma vez, reutilizado por todas as imagens */
+  var _globalObserver = null;
+
+  function _getObserver() {
+    if (_globalObserver) return _globalObserver;
+    if (!('IntersectionObserver' in window)) return null;
+    _globalObserver = new IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (!entries[i].isIntersecting) continue;
+        _globalObserver.unobserve(entries[i].target);
+        var el = entries[i].target;
+        var s = el.getAttribute('data-src');
+        if (s && el.getAttribute('data-loaded') !== '1') {
+          /* Recupera o placeholder armazenado no dataset */
+          var ph = el._rendererPlaceholder || createPlaceholder('live', el.alt || '', false);
+          _imgQueue.push({ el: el, src: s, placeholder: ph });
+          _scheduleProcess();
+        }
+      }
+    }, {
+      rootMargin: '400px 0px',  /* AUMENTADO: pré-carrega antes de aparecer na tela */
+      threshold: 0
+    });
+    return _globalObserver;
+  }
+
+  /* Agenda processamento com pequeno delay para não travar a TV */
+  function _scheduleProcess() {
+    if (_imgTimer) return;
+    _imgTimer = setTimeout(function () {
+      _imgTimer = null;
+      _processImgQueue();
+    }, 60); /* 60ms de respiro para a thread principal da TV */
+  }
 
   function _processImgQueue() {
     while (_imgLoading < _IMG_MAX && _imgQueue.length > 0) {
       var entry = _imgQueue.shift();
-      var img   = entry.el;
+      var img = entry.el;
       if (!img || !img.parentNode) continue;
       if (img.getAttribute('data-loaded') === '1') continue;
 
       _imgLoading++;
       (function (imgEl, src, ph) {
         imgEl.onload = function () {
+          imgEl.onload = null; imgEl.onerror = null;
           _imgLoading = Math.max(0, _imgLoading - 1);
           imgEl.setAttribute('data-loaded', '1');
-          _processImgQueue();
+          _scheduleProcess();
         };
         imgEl.onerror = function () {
+          imgEl.onload = null; imgEl.onerror = null;
           _imgLoading = Math.max(0, _imgLoading - 1);
           try {
             var p = imgEl.parentNode;
             if (p) p.replaceChild(ph, imgEl);
-          } catch (e) {}
-          _processImgQueue();
+          } catch (e) { }
+          _scheduleProcess();
         };
         imgEl.src = src;
       })(img, entry.src, entry.placeholder);
@@ -317,25 +366,19 @@ var Renderer = (function () {
       placeholder = createPlaceholder('live', imgEl.alt || '', false);
     }
     imgEl.setAttribute('data-src', src);
+    /* Guarda referência ao placeholder no elemento para o observer global recuperar */
+    imgEl._rendererPlaceholder = placeholder;
 
-    if ('IntersectionObserver' in window) {
-      var obs = new IntersectionObserver(function (entries, observer) {
-        for (var i = 0; i < entries.length; i++) {
-          if (!entries[i].isIntersecting) continue;
-          observer.unobserve(entries[i].target);
-          var el = entries[i].target;
-          var s  = el.getAttribute('data-src');
-          if (s && el.getAttribute('data-loaded') !== '1') {
-            _imgQueue.push({ el: el, src: s, placeholder: placeholder });
-            _processImgQueue();
-          }
-        }
-      }, { rootMargin: '150px 0px', threshold: 0 });
+    var obs = _getObserver();
+    if (obs) {
+      /* TV com IntersectionObserver: usa observer global */
       obs.observe(imgEl);
     } else {
-      // TV sem IntersectionObserver: enfileira direto
-      _imgQueue.push({ el: imgEl, src: s, placeholder: placeholder });
-      _processImgQueue();
+      /* ── TV SEM IntersectionObserver (ex: Panasonic antiga) ──
+         CORREÇÃO DO BUG: antes usava 'src: s' (variável inexistente).
+         Agora usa corretamente 'src: src' (parâmetro da função).       */
+      _imgQueue.push({ el: imgEl, src: src, placeholder: placeholder });
+      _scheduleProcess();
     }
   }
 
