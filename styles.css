@@ -968,7 +968,7 @@ select {
   font-weight: 700;
   margin-bottom: 20px;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hero-grid {
@@ -977,12 +977,15 @@ select {
   gap: 20px;
   padding: 10px 0 20px 0;
   scroll-behavior: smooth;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE/Edge */
 }
 
 .hero-grid::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
+  /* Chrome/Safari */
 }
 
 .hero-grid .media-card {
@@ -1554,7 +1557,7 @@ select {
     gap: 12px;
   }
 
-  .episode-card {
+  w .episode-card {
     width: auto;
     margin-right: 0;
     margin-bottom: 0;
