@@ -106,7 +106,7 @@ var Auth = (function () {
      CORREÇÃO: timeout aumentado de 45s → 120s.
      Listas com milhares de itens podem demorar 60-90s dependendo
      da velocidade do servidor e do tamanho do payload.              */
-  function _fetchJSONStream(url, onChunk, timeout) {
+  function _fetchJSONStream(url, onChunk, limit, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
 
     return _xhrText(url, timeout || 120000).then(function (text) { /* AUMENTADO: 45s → 120s */
@@ -119,7 +119,7 @@ var Auth = (function () {
         return data || [];
       }
 
-      var total = Math.min(data.length, _MAX_ITEMS);
+      var total = Math.min(data.length, limit || _MAX_ITEMS);
       if (!onChunk) return data.slice(0, total);
 
       var BATCH = 50;

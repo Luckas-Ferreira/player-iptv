@@ -40,7 +40,6 @@ npx serve .
 |---------|--------|
 | Login Xtream Codes | ✅ |
 | Login M3U | ✅ |
-| Modo Demonstração | ✅ |
 | TV ao Vivo | ✅ |
 | Filmes (VOD) | ✅ |
 | Séries com Episódios | ✅ |

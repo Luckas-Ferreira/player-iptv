@@ -45,6 +45,9 @@ var Player = (function () {
   var _skipStartTime = 0;
   var _skipTimer = null;
   var _skipInterval = null;
+  var _progressTimer = null;
+  var _resumePendingTime = 0;
+
 
   /* ── Buffered Seek ────────────────────────────────────────── */
   var _isSeeking = false;
@@ -86,9 +89,54 @@ var Player = (function () {
     _nextCardShown = false;
     _hideNextCard();
     _clearSkipCountdown();
+    _clearProgressTimer();
+    _resumePendingTime = 0;
     _isSeeking = false;
     if (_seekTimer) clearTimeout(_seekTimer);
+ 
+    /* Verifica se há progresso salvo */
+    var id = String(item.stream_id || item.vod_id || item._episodeId || item.id || '');
+    var progress = (id && item._type !== 'live') ? Storage.getProgress(id) : null;
 
+    if (progress && progress.time > 10) {
+      _showResumePrompt(progress, item);
+      return; /* Espera decisão do usuário */
+    }
+
+    _startPlayback(item);
+  }
+
+  function _showResumePrompt(progress, item) {
+    var modal = document.getElementById('modal-resume');
+    var timeDisplay = document.getElementById('resume-time-display');
+    var btnContinue = document.getElementById('btn-resume-continue');
+    var btnStartOver = document.getElementById('btn-resume-start-over');
+
+    if (!modal || !timeDisplay || !btnContinue || !btnStartOver) {
+      _startPlayback(item);
+      return;
+    }
+
+    timeDisplay.textContent = _formatTime(progress.time);
+    modal.classList.remove('hidden');
+
+    btnContinue.onclick = function() {
+      modal.classList.add('hidden');
+      _resumePendingTime = progress.time;
+      _startPlayback(item);
+    };
+
+    btnStartOver.onclick = function() {
+      modal.classList.add('hidden');
+      _resumePendingTime = 0;
+      _startPlayback(item);
+    };
+
+    /* Foca botão de continuar por padrão */
+    setTimeout(function() { btnContinue.focus(); }, 100);
+  }
+
+  function _startPlayback(item) {
     _destroyAll();
     _showLoading('Carregando...');
     _hideError();
@@ -119,16 +167,15 @@ var Player = (function () {
     Storage.addRecent(item);
 
     var type = item._type || 'live';
-
     if (type === 'live') {
       _startLive();
     } else {
-      /* Filmes e Séries: IP direto, sem CORS proxy */
       _startVOD();
     }
   }
 
   function stop() {
+    _clearProgressTimer();
     _destroyAll();
     _currentItem = null;
   }
@@ -238,9 +285,11 @@ var Player = (function () {
       referrerPolicy: 'no-referrer'
     }, {
       enableWorker: false,
-      liveBufferLatencyChasing: true,
-      liveSync: true,
-      lazyLoadMaxDuration: 3 * 60,
+      enableStashBuffer: true,
+      stashInitialSize: 1024 * 1024, /* 1MB buffer inicial para evitar travas */
+      liveBufferLatencyChasing: false, /* Desativa pulos para manter estabilidade */
+      liveSync: false,
+      lazyLoadMaxDuration: 5 * 60,
       seekType: 'range'
     });
 
@@ -279,8 +328,10 @@ var Player = (function () {
     _destroyHLS();
 
     var hls = new Hls({
-      maxBufferLength: 8,
-      maxMaxBufferLength: 30,
+      maxBufferLength: 30, /* Aumentado de 8 para 30s de segurança */
+      maxMaxBufferLength: 60,
+      liveSyncDurationCount: 5, /* Inicia 5 blocos atrás do vivo para estabilidade */
+      liveMaxLatencyDurationCount: 10,
       enableWorker: false,
       startFragPrefetch: true,
       manifestLoadingTimeOut: 15000,
@@ -462,7 +513,15 @@ var Player = (function () {
         _showOverlay();
       });
     }
+
+    /* Se houver tempo de retomada pendente, aplica após o carregamento inicial */
+    if (_resumePendingTime > 0) {
+      console.log('[Player] Retomando para:', _resumePendingTime);
+      _video.currentTime = _resumePendingTime;
+      _resumePendingTime = 0;
+    }
   }
+
 
 
   /* ══════════════════════════════════════
@@ -489,6 +548,7 @@ var Player = (function () {
   }
 
   function _destroyAll() {
+    _clearProgressTimer();
     _clearBufWatchdog();
     _destroyMpegts();
     if (_hls) { try { _hls.destroy(); } catch (e) { } _hls = null; }
@@ -498,6 +558,7 @@ var Player = (function () {
       try { _video.load(); } catch (e) { }
     }
   }
+
 
 
   /* ══════════════════════════════════════
@@ -523,6 +584,28 @@ var Player = (function () {
   function _clearBufWatchdog() {
     if (_bufTimer) { clearTimeout(_bufTimer); _bufTimer = null; }
   }
+
+  /* ── Progresso do vídeo ── */
+  function _startProgressTimer() {
+    _clearProgressTimer();
+    _progressTimer = setInterval(function() {
+      if (_video && _isPlaying && _currentItem && _currentItem._type !== 'live') {
+        var id = String(_currentItem.stream_id || _currentItem.vod_id || _currentItem._episodeId || _currentItem.id || '');
+        if (id && isFinite(_video.duration)) {
+          Storage.saveProgress(id, _video.currentTime, _video.duration, _currentItem);
+        }
+      }
+    }, 10000); /* Salva a cada 10 segundos */
+  }
+
+
+  function _clearProgressTimer() {
+    if (_progressTimer) {
+      clearInterval(_progressTimer);
+      _progressTimer = null;
+    }
+  }
+
 
 
   /* ══════════════════════════════════════
@@ -663,7 +746,12 @@ var Player = (function () {
     var btn = document.getElementById('player-play-pause');
     if (btn) btn.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
     _showOverlay();
+
+    if (_currentItem && _currentItem._type !== 'live') {
+      _startProgressTimer();
+    }
   }
+
 
   function _onWaiting() {
     _showLoading('Buffering...');

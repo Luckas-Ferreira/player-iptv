@@ -134,6 +134,16 @@
           </span>
           <span class="menu-label">Favoritos</span>
         </li>
+        <li class="menu-item" data-tab="watchlist" role="menuitem" tabindex="0" aria-label="Continuar Assistindo">
+          <span class="menu-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </span>
+          <span class="menu-label">Continuar Assistindo</span>
+        </li>
         <li class="menu-item" data-tab="recents" role="menuitem" tabindex="0" aria-label="Recentes">
           <span class="menu-icon" aria-hidden="true">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -287,6 +297,10 @@
         <div class="detail-meta">
           <h2 id="detail-title" class="detail-title"></h2>
           <div id="detail-badges" class="detail-badges"></div>
+          <div id="detail-extra-info" class="detail-extra-info">
+            <p id="detail-director-row" class="detail-extra-item hidden"><strong>Diretor:</strong> <span id="detail-director"></span></p>
+            <p id="detail-cast-row" class="detail-extra-item hidden"><strong>Elenco:</strong> <span id="detail-cast"></span></p>
+          </div>
           <p id="detail-plot" class="detail-plot"></p>
           <div class="detail-actions">
             <button id="detail-play" class="btn-primary btn-large" tabindex="0">
@@ -374,6 +388,21 @@
       <p id="player-error-text">Erro ao carregar o stream</p>
       <button id="player-retry" class="btn-primary" tabindex="0">Tentar Novamente</button>
       <button id="player-back-from-error" class="btn-outline" tabindex="0">Voltar</button>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL: CONTINUAR ASSISTINDO ===================== -->
+  <div id="modal-resume" class="modal-resume-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-resume-card">
+      <div class="resume-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+      </div>
+      <h3 class="resume-title">Continuar Assistindo?</h3>
+      <p class="resume-text">Vimos que você já começou este vídeo. Deseja continuar de onde parou (<span id="resume-time-display">00:00</span>)?</p>
+      <div class="resume-actions">
+        <button id="btn-resume-continue" class="btn-primary" tabindex="0">Continuar Assistindo</button>
+        <button id="btn-resume-start-over" class="btn-secondary" tabindex="0">Recomeçar do Início</button>
+      </div>
     </div>
   </div>
 

@@ -25,7 +25,8 @@ var App = (function () {
     loadToken: 0,
     isLoggingIn: false,
     currentEpisodes: [],
-    originalItems: []
+    originalItems: [],
+    isSearching: false
   };
 
   /* ══════════════════════════════════════
@@ -227,7 +228,10 @@ var App = (function () {
       if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
       else searchBar.classList.add('hidden');
     }
-    if (searchInput) searchInput.value = '';
+    if (searchInput) {
+      searchInput.value = '';
+      _state.isSearching = false;
+    }
     _state.originalItems = [];
 
     var panels = [spanel, stpanel];
@@ -251,16 +255,56 @@ var App = (function () {
     var titleEl = document.getElementById('content-title');
     if (titleEl) titleEl.textContent = {
       live: 'TV ao Vivo', movies: 'Filmes', series: 'Séries',
-      favorites: 'Favoritos', recents: 'Assistidos Recentemente'
+      favorites: 'Favoritos', watchlist: 'Continuar Assistindo', recents: 'Assistidos Recentemente'
     }[tabName] || tabName;
 
     _loadCurrentTab();
   }
 
+  function _renderWatchlistRow() {
+    var body = document.getElementById('content-body');
+    if (!body) return;
+    
+    var existing = document.getElementById('hero-watchlist-row');
+    if (existing) existing.remove();
+
+    var tab = _state.activeTab;
+    if (tab !== 'live' && tab !== 'movies' && tab !== 'series') return;
+
+    var items = Storage.getProgressArray();
+    if (!items || items.length === 0) return;
+
+    var row = document.createElement('div');
+    row.id = 'hero-watchlist-row';
+    row.className = 'hero-row';
+    
+    var title = document.createElement('h2');
+    title.className = 'hero-row-title';
+    title.textContent = 'Continuar Assistindo';
+    row.appendChild(title);
+    
+    var grid = document.createElement('div');
+    grid.className = 'hero-grid';
+    
+    Renderer.renderGrid(grid, items, {
+      onPlay: function(it) { _openDetail(it); },
+      onRemove: function(it) {
+        Storage.removeProgress(it.id);
+        _renderWatchlistRow();
+      }
+    });
+    
+    row.appendChild(grid);
+    body.insertBefore(row, body.firstChild);
+  }
+
 
   function _loadCurrentTab() {
     var tab = _state.activeTab;
+    _renderWatchlistRow();
+    
     if (tab === 'favorites') { _renderFavorites(); return; }
+    if (tab === 'watchlist') { _renderWatchlist(); return; }
     if (tab === 'recents') { _renderRecents(); return; }
     Renderer.setLoading(true);
     Renderer.setEmpty(false);
@@ -293,8 +337,8 @@ var App = (function () {
     }).catch(_handleLoadError);
   }
 
-  /* Inicia carregamento com streaming para uma categoria */
-  function _startStreamingLoad(getStreams, categoryId) {
+  /* Inicia carregamento com streaming para uma categoria ou busca */
+  function _startStreamingLoad(getStreams, categoryId, search) {
     var token = ++_state.loadToken;
     var grid = document.getElementById('content-grid');
 
@@ -306,13 +350,12 @@ var App = (function () {
     _state.isLoadingMore = false;
 
     var firstChunkReceived = false;
-    Renderer.setEmpty(false); // Garante que começa limpo
+    var fullItems = []; // Itens retornados pelo servidor
+    Renderer.setEmpty(false);
 
     getStreams(categoryId, function (chunk) {
-      /* Descarta chunks de requisições antigas */
       if (token !== _state.loadToken) return;
 
-      /* Filtra itens sem nome (evita bloco "Sem nome") */
       var filteredChunk = [];
       for (var i = 0; i < chunk.length; i++) {
         var item = chunk[i];
@@ -322,39 +365,57 @@ var App = (function () {
       }
       if (filteredChunk.length === 0) return;
 
-      /* Na primeira chegada de dados: esconde spinner e mostra grade */
-      if (!firstChunkReceived) {
-        firstChunkReceived = true;
-        Renderer.setLoading(false);
-        if (grid) grid.style.display = '';
+      /* Acumula itens — se houver busca, filtra localmente como segurança */
+      var validItems = filteredChunk;
+      if (search) {
+        var query = search.toLowerCase();
+        validItems = [];
+        for (var k = 0; k < filteredChunk.length; k++) {
+          if (filteredChunk[k].name && filteredChunk[k].name.toLowerCase().indexOf(query) !== -1) {
+            validItems.push(filteredChunk[k]);
+          }
+        }
       }
 
-      _state.allItems = _state.allItems.concat(filteredChunk);
-      
-      /* Limite de segurança reduzido para 3k para evitar que a TV trave */
-      if (_state.allItems.length > 3000) {
-        console.warn('[App] Limite de segurança atingido, truncando para 3k itens');
-        _state.allItems = _state.allItems.slice(0, 3000);
+      var limit = search ? 15000 : 3000;
+      fullItems = fullItems.concat(validItems);
+      if (fullItems.length > limit) fullItems = fullItems.slice(0, limit);
+
+      var displayChunk = validItems;
+
+      if (displayChunk.length > 0) {
+        if (!firstChunkReceived) {
+          firstChunkReceived = true;
+          Renderer.setLoading(false);
+          if (grid) grid.style.display = '';
+        }
+        _state.allItems = _state.allItems.concat(displayChunk);
+        if (_state.allItems.length > limit) _state.allItems = _state.allItems.slice(0, limit);
+
+        if (_state.renderedCount < 200) {
+          _loadMoreItems();
+        }
       }
-      
-      /* Renderiza progressivamente enquanto os dados chegam, até atingir um limite inicial (ex: 200 itens) */
-      if (_state.renderedCount < 200) {
-        _loadMoreItems();
-      }
-    }).then(function (allItems) {
+    }, search).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
-      /* Consolida o payload final. Evitamos re-processar tudo se já temos no allItems */
-      if (!_state.allItems.length && allItems && allItems.length) {
-        var finalItems = [];
+      /* Consolida o payload final. Se fullItems está vazio mas temos allItems, filtra-os se necessário */
+      if (fullItems.length === 0 && allItems && allItems.length) {
+        var query = search ? search.toLowerCase() : '';
+        var limit = search ? 15000 : 3000;
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];
-          if (it && it.name && it.name.trim() !== '') finalItems.push(it);
-          if (finalItems.length >= 3000) break;
+          if (it && it.name && it.name.trim() !== '') {
+            if (query) {
+              if (it.name.toLowerCase().indexOf(query) !== -1) fullItems.push(it);
+            } else {
+              fullItems.push(it);
+            }
+          }
+          if (fullItems.length >= limit) break;
         }
-        _state.allItems = finalItems;
       }
-      _state.originalItems = _state.allItems;
+      _state.originalItems = fullItems;
 
       if (!firstChunkReceived) {
         Renderer.setLoading(false);
@@ -364,6 +425,11 @@ var App = (function () {
       } else {
         Renderer.setEmpty(_state.allItems.length === 0);
       }
+      
+      if (_state.isSearching && _state.allItems.length === 0) {
+        Renderer.setEmpty(true);
+      }
+      
     }).catch(function (e) {
       if (token !== _state.loadToken) return;
       _handleLoadError(e);
@@ -394,8 +460,11 @@ var App = (function () {
             allBtns[j].classList.remove('active');
           }
           btn.classList.add('active');
-          /* Freia memória antes de carregar nova categoria gigante */
-          if (API && API.clearCache) API.clearCache(true);
+          /* Reseta busca se o usuário clicar numa categoria */
+          var searchInput = document.getElementById('header-search-input');
+          if (searchInput) searchInput.value = '';
+          _state.isSearching = false;
+
           Renderer.setLoading(true);
           _startStreamingLoad(getStreams, cat.category_id);
         });
@@ -525,6 +594,13 @@ var App = (function () {
     _renderGrid(items);
   }
 
+  function _renderWatchlist() {
+    Renderer.setLoading(false);
+    var items = Storage.getProgressArray();
+    document.getElementById('category-filter').innerHTML = '';
+    _renderGrid(items);
+  }
+
   /* ══════════════════════════════════════
      PLAY / DETALHE
   ══════════════════════════════════════ */
@@ -585,18 +661,58 @@ var App = (function () {
         if (!info || !info.info) return;
         var plotEl = document.getElementById('detail-plot');
         if (plotEl && info.info.plot) plotEl.textContent = info.info.plot;
+        
+        /* Diretor e Elenco */
+        var dirRow = document.getElementById('detail-director-row');
+        var dirEl = document.getElementById('detail-director');
+        var castRow = document.getElementById('detail-cast-row');
+        var castEl = document.getElementById('detail-cast');
+
+        if (dirRow && dirEl) {
+          if (info.info.director && info.info.director.trim() !== '' && info.info.director !== 'N/A') {
+            dirEl.textContent = info.info.director;
+            dirRow.classList.remove('hidden');
+          } else {
+            dirRow.classList.add('hidden');
+          }
+        }
+        if (castRow && castEl) {
+          if (info.info.cast && info.info.cast.trim() !== '' && info.info.cast !== 'N/A') {
+            castEl.textContent = info.info.cast;
+            castRow.classList.remove('hidden');
+          } else {
+            castRow.classList.add('hidden');
+          }
+        }
+
         var badgesEl = document.getElementById('detail-badges');
         if (badgesEl) {
           badgesEl.innerHTML = '';
           if (info.info.releasedate) badgesEl.appendChild(_badge(info.info.releasedate.substring(0, 4), 'badge-year'));
+          if (info.info.duration_secs) {
+            var mins = Math.floor(info.info.duration_secs / 60);
+            var hours = Math.floor(mins / 60);
+            var m = mins % 60;
+            var durStr = (hours > 0 ? hours + 'h ' : '') + m + 'min';
+            badgesEl.appendChild(_badge(durStr, 'badge-duration'));
+          } else if (info.info.duration) {
+              badgesEl.appendChild(_badge(info.info.duration, 'badge-duration'));
+          }
           if (info.info.rating) badgesEl.appendChild(_badge('⭐ ' + info.info.rating, 'badge-rating'));
-          if (info.info.genre) info.info.genre.split(',').slice(0, 2).forEach(function (g) {
-            badgesEl.appendChild(_badge(g.trim(), 'badge-genre'));
-          });
+          if (info.info.genre) {
+             var gs = info.info.genre.split(',');
+             gs.slice(0, 3).forEach(function (g) {
+               badgesEl.appendChild(_badge(g.trim(), 'badge-genre'));
+             });
+          }
         }
       }).catch(function () { });
     }
-    Navigation.focusFirst('detail');
+    /* Foca no Play em vez do Voltar */
+    setTimeout(function() {
+      var playBtn = document.getElementById('detail-play');
+      if (playBtn) playBtn.focus();
+    }, 150);
   }
 
   function _openSeriesDetail(item) {
@@ -608,7 +724,11 @@ var App = (function () {
     if (epPanel) epPanel.classList.remove('hidden');
     _bindDetailFavorite(item);
     if (_state.mode === 'xtream' && item.series_id) _loadXtreamSeriesEpisodes(item);
-    Navigation.focusFirst('detail');
+    /* Foca no Play em vez do Voltar */
+    setTimeout(function() {
+      var playBtn = document.getElementById('detail-play');
+      if (playBtn) playBtn.focus();
+    }, 150);
   }
 
   function _loadXtreamSeriesEpisodes(series) {
@@ -699,6 +819,20 @@ var App = (function () {
     rt.textContent = (ep.info && ep.info.duration) ? ep.info.duration : (series.episode_run_time ? series.episode_run_time + ' min' : '');
     info.appendChild(num); info.appendChild(titleEl); info.appendChild(rt);
     card.appendChild(info);
+
+    /* Barra de Progresso no Episódio */
+    var progId = ep.id || ep.stream_id;
+    var prog = Storage.getProgress(progId);
+    if (prog && prog.pct > 1) {
+      var pBar = document.createElement('div');
+      pBar.className = 'card-progress';
+      var pFill = document.createElement('div');
+      pFill.className = 'card-progress-fill';
+      pFill.style.width = Math.min(100, prog.pct) + '%';
+      pBar.appendChild(pFill);
+      card.appendChild(pBar);
+    }
+
     card.addEventListener('click', function () {
       _openPlayer(Object.assign({}, series, {
         _type: 'series', _episodeId: ep.id || ep.stream_id,
@@ -724,6 +858,21 @@ var App = (function () {
       if (item.year) bx.appendChild(_badge(item.year, 'badge-year'));
       if (item.rating) bx.appendChild(_badge('⭐ ' + item.rating, 'badge-rating'));
       if (item.category_name) bx.appendChild(_badge(item.category_name, 'badge-genre'));
+    }
+
+    /* Configura Texto do Botão (Assistir vs Continuar Assistindo) */
+    var playBtn = document.getElementById('detail-play');
+    if (playBtn) {
+      var id = String(item.stream_id || item.vod_id || item.series_id || item.id || '');
+      var prog = Storage.getProgress(id);
+
+      /* Se for série, busca progresso em qualquer episódio p/ mudar o texto do botão principal */
+      if (!prog && (item.series_id || item._type === 'series')) {
+        prog = Storage.getSeriesProgress(item.series_id || item.id);
+      }
+
+      var isResume = !!prog;
+      playBtn.innerHTML = '&#9654; &nbsp;' + (isResume ? 'Continuar Assistindo' : 'Assistir');
     }
   }
 
@@ -843,40 +992,57 @@ var App = (function () {
   function _handleSearch() {
     var input = document.getElementById('header-search-input');
     if (!input) return;
-    var query = input.value.trim().toLowerCase();
-
-    if (!_state.originalItems || _state.originalItems.length === 0) {
-      if (_state.allItems && _state.allItems.length > 0) {
-        _state.originalItems = _state.allItems;
-      } else { return; }
-    }
+    var query = input.value.trim();
+    var tab = _state.activeTab;
 
     if (!query) {
-      _renderGrid(_state.originalItems);
+      if (_state.isSearching) {
+        _state.isSearching = false;
+        _loadCurrentTab();
+      }
       return;
     }
 
-    var filtered = [];
-    for (var i = 0; i < _state.originalItems.length; i++) {
-      var item = _state.originalItems[i];
-      if (item && item.name && item.name.toLowerCase().indexOf(query) !== -1) {
-        filtered.push(item);
-      }
+    /* Inicia uma busca global NO SERVIDOR */
+    _state.isSearching = true;
+    var getStreams;
+    if (tab === 'live') getStreams = API.getLiveStreams;
+    else if (tab === 'movies') getStreams = API.getVodStreams;
+    else if (tab === 'series') getStreams = API.getSeriesList;
+    else { _state.isSearching = false; return; }
+
+    Renderer.setLoading(true);
+    _startStreamingLoad(getStreams, null, query); // null = categoria, query = busca
+    
+    var titleEl = document.getElementById('content-title');
+    if (titleEl) {
+      titleEl.textContent = 'Busca: ' + query;
     }
-    _renderGrid(filtered);
   }
 
   function goBack() {
     var screen = document.querySelector('.screen.active');
     var sid = screen ? screen.id.replace('screen-', '') : '';
+    
     if (sid === 'player' && !_state.miniActive) {
       Player.stop(); _state.miniItem = null;
-      Navigation.popHistory(); _showScreen('main'); Navigation.focusFirst('main');
-      return;
     }
-    if (sid === 'detail') {
-      Navigation.popHistory(); _showScreen('main'); Navigation.focusFirst('main');
-      return;
+
+    var prev = Navigation.popHistory();
+    console.log('[App] Retornando para:', prev);
+    
+    if (prev) {
+      _showScreen(prev);
+      if (prev === 'main') Navigation.focusFirst('main');
+      else if (prev === 'detail') {
+         setTimeout(function() {
+            var btn = document.getElementById('detail-play');
+            if (btn) btn.focus();
+         }, 100);
+      }
+    } else {
+      _showScreen('main');
+      Navigation.focusFirst('main');
     }
   }
 

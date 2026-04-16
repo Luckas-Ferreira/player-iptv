@@ -116,53 +116,59 @@ var API = (function () {
   }
 
   /* ── Streams ─────────────────────────────────────────── */
-  function getLiveStreams(categoryId, onChunk) {
-    var key = 'live_' + (categoryId || 'all');
-    var url = _xtreamUrl('get_live_streams', categoryId ? ('&category_id=' + categoryId) : '');
+  function getLiveStreams(categoryId, onChunk, search) {
+    var key = search ? ('live_search_' + search) : ('live_' + (categoryId || 'all'));
+    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
+    var url = _xtreamUrl('get_live_streams', extra);
+    
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s.type = 'live'; return s; }));
-      }).then(function (all) {
-        cache[key] = all.map(function (s) { s.type = 'live'; return s; });
+        onChunk(chunk.map(function (s) { s._type = 'live'; return s; }));
+      }, search ? 15000 : 3000).then(function (all) {
+        cache[key] = all.map(function (s) { s._type = 'live'; return s; });
         return cache[key];
       });
     }
     return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s.type = 'live'; return s; });
+      cache[key] = (data || []).map(function (s) { s._type = 'live'; return s; });
       return cache[key];
     });
   }
 
-  function getVodStreams(categoryId, onChunk) {
-    var key = 'vod_' + (categoryId || 'all');
-    var url = _xtreamUrl('get_vod_streams', categoryId ? ('&category_id=' + categoryId) : '');
+  function getVodStreams(categoryId, onChunk, search) {
+    var key = search ? ('vod_search_' + search) : ('vod_' + (categoryId || 'all'));
+    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
+    var url = _xtreamUrl('get_vod_streams', extra);
+
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s.type = 'movie'; return s; }));
-      }).then(function (all) {
-        cache[key] = all.map(function (s) { s.type = 'movie'; return s; });
+        onChunk(chunk.map(function (s) { s._type = 'movie'; return s; }));
+      }, search ? 15000 : 3000).then(function (all) {
+        cache[key] = all.map(function (s) { s._type = 'movie'; return s; });
         return cache[key];
       });
     }
     return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s.type = 'movie'; return s; });
+      cache[key] = (data || []).map(function (s) { s._type = 'movie'; return s; });
       return cache[key];
     });
   }
 
-  function getSeriesList(categoryId, onChunk) {
-    var key = 'series_' + (categoryId || 'all');
-    var url = _xtreamUrl('get_series', categoryId ? ('&category_id=' + categoryId) : '');
+  function getSeriesList(categoryId, onChunk, search) {
+    var key = search ? ('series_search_' + search) : ('series_' + (categoryId || 'all'));
+    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
+    var url = _xtreamUrl('get_series', extra);
+
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s.type = 'series'; return s; }));
-      }).then(function (all) {
-        cache[key] = all.map(function (s) { s.type = 'series'; return s; });
+        onChunk(chunk.map(function (s) { s._type = 'series'; return s; }));
+      }, search ? 15000 : 3000).then(function (all) {
+        cache[key] = all.map(function (s) { s._type = 'series'; return s; });
         return cache[key];
       });
     }
     return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s.type = 'series'; return s; });
+      cache[key] = (data || []).map(function (s) { s._type = 'series'; return s; });
       return cache[key];
     });
   }

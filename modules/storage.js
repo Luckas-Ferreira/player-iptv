@@ -11,6 +11,7 @@ var Storage = (function () {
     recents:   'stv_recents',
     settings:  'stv_settings',
     auth:      'stv_auth',
+    progress:  'stv_progress',
     cache:     'stv_cache_'
   };
 
@@ -124,6 +125,90 @@ var Storage = (function () {
     _write(KEYS.settings, settings);
   }
 
+  // --- Progresso de Vídeo (Continuar Assistindo) ---
+  function getProgress(id) {
+    var all = _read(KEYS.progress) || {};
+    return all[id] || null;
+  }
+
+  function getProgressArray() {
+    var all = _read(KEYS.progress) || {};
+    var arr = [];
+    for (var id in all) {
+      if (!all.hasOwnProperty(id)) continue;
+      var p = all[id];
+      arr.push({
+        id: id,
+        stream_id: p.type === 'movie' ? id : null,
+        vod_id: p.type === 'movie' ? id : null,
+        series_id: p.type === 'series' ? p.series_id : null,
+        _episodeId: p.type === 'series' ? id : null,
+        name: p.name,
+        _type: p.type,
+        stream_icon: p.icon,
+        cover: p.icon,
+        series_cover: p.icon,
+        category_name: p.type === 'movie' ? 'Filmes' : 'Séries',
+        updatedAt: p.updatedAt
+      });
+    }
+    arr.sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+    return arr;
+  }
+
+  function getSeriesProgress(seriesId) {
+    if (!seriesId) return null;
+    var all = _read(KEYS.progress) || {};
+    var latest = null;
+    var sid = String(seriesId);
+    for (var id in all) {
+      if (!all.hasOwnProperty(id)) continue;
+      var p = all[id];
+      if (p.type === 'series' && String(p.series_id) === sid) {
+        if (!latest || p.updatedAt > latest.updatedAt) latest = p;
+      }
+    }
+    return latest;
+  }
+
+  function removeProgress(id) {
+    if (!id) return;
+    var all = _read(KEYS.progress) || {};
+    if (all[id]) {
+      delete all[id];
+      _write(KEYS.progress, all);
+      return true;
+    }
+    return false;
+  }
+
+  function saveProgress(id, time, duration, item) {
+    if (!id || !duration) return;
+    var all = _read(KEYS.progress) || {};
+    var pct = (time / duration) * 100;
+
+    if (pct > 98 || time < 5) {
+      if (all[id]) {
+        delete all[id];
+        _write(KEYS.progress, all);
+      }
+    } else {
+      var existing = all[id] || {};
+      all[id] = {
+        name: item ? item.name : (existing.name || 'Sem nome'),
+        type: item ? (item._type || 'movie') : (existing.type || 'movie'),
+        icon: item ? (item.stream_icon || item.cover || item.series_cover || '') : (existing.icon || ''),
+        series_id: item ? (item.series_id || null) : (existing.series_id || null),
+        time: time,
+        duration: duration,
+        pct: pct,
+        updatedAt: Date.now()
+      };
+      _write(KEYS.progress, all);
+    }
+  }
+
+
   // --- Auth (credenciais) ---
   function saveAuth(data) {
     _write(KEYS.auth, data);
@@ -180,6 +265,11 @@ var Storage = (function () {
     saveAuth:          saveAuth,
     getAuth:           getAuth,
     clearAuth:         clearAuth,
+    getProgress:       getProgress,
+    getProgressArray:  getProgressArray,
+    getSeriesProgress: getSeriesProgress,
+    removeProgress:    removeProgress,
+    saveProgress:      saveProgress,
     saveCache:         saveCache,
     getCache:          getCache,
     clearAll:          clearAll

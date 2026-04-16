@@ -17,7 +17,7 @@ var Renderer = (function () {
 
   /* ═══════════════════════ CARD ═══════════════════════ */
 
-  function createCard(item, callbacks) {
+  function createCard(item, options) {
     var id = String(item.stream_id || item.series_id || item.vod_id || item.id || '');
     var name = item.name || 'Sem Nome';
     var type = item._type || 'live';
@@ -62,7 +62,31 @@ var Renderer = (function () {
     });
     card.appendChild(favBtn);
 
-    /* Corpo */
+    /* Progresso (Continuar Assistindo) */
+    if (type !== 'live') {
+      var prog = Storage.getProgress(id);
+      if (prog && prog.pct > 1) {
+        var pBar = _el('div', { className: 'card-progress' });
+        var pFill = _el('div', { className: 'card-progress-fill' });
+        pFill.style.width = Math.min(100, prog.pct) + '%';
+        pBar.appendChild(pFill);
+        card.appendChild(pBar);
+      }
+    }
+
+    /* Botão de Remover (Estilo Netflix) - Apenas se onRemove for passado nas opções */
+    if (options && options.onRemove && type !== 'live') {
+      var removeBtn = _el('div', { 
+        className: 'card-remove', 
+        innerHTML: '&times;', 
+        title: 'Remover da fileira' 
+      });
+      removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); e.preventDefault();
+        options.onRemove(item);
+      });
+      card.appendChild(removeBtn);
+    }
     var body = _el('div', { className: 'card-body' });
     var title = _el('p', { className: 'card-title', textContent: name });
     var cat = _el('p', { className: 'card-category', textContent: category });
@@ -75,7 +99,7 @@ var Renderer = (function () {
     card.addEventListener('click', function (e) {
       if (e.target === favBtn || favBtn.contains(e.target)) return;
       if (_ignorePlay) return;
-      if (callbacks && callbacks.onPlay) callbacks.onPlay(item);
+      if (options && options.onPlay) options.onPlay(item);
     });
 
     function _cancelLP() {
@@ -101,7 +125,7 @@ var Renderer = (function () {
           var nowFav = Storage.toggleFavorite(item);
           favBtn.textContent = nowFav ? '\u2605' : '\u2606';
           favBtn.className = 'card-fav' + (nowFav ? ' is-fav' : '');
-          if (callbacks && callbacks.onFavorite) callbacks.onFavorite(item, nowFav);
+          if (options && options.onFavorite) options.onFavorite(item, nowFav);
           Renderer.showToast(nowFav ? '\u2605 Adicionado aos favoritos' : '\u2606 Removido dos favoritos', nowFav ? 'success' : 'info');
           setTimeout(function () { _ignorePlay = false; }, 500);
         }, 3000);
@@ -113,7 +137,7 @@ var Renderer = (function () {
         e.preventDefault(); _isKeyDown = false;
         if (_lpTimer) {
           _cancelLP();
-          if (!_ignorePlay && callbacks && callbacks.onPlay) callbacks.onPlay(item);
+          if (!_ignorePlay && options && options.onPlay) options.onPlay(item);
         }
       }
     });
@@ -125,7 +149,7 @@ var Renderer = (function () {
       var nf = Storage.toggleFavorite(item);
       favBtn.textContent = nf ? '\u2605' : '\u2606';
       favBtn.className = 'card-fav' + (nf ? ' is-fav' : '');
-      if (callbacks && callbacks.onFavorite) callbacks.onFavorite(item, nf);
+      if (options && options.onFavorite) options.onFavorite(item, nf);
     });
 
     return card;
@@ -142,11 +166,11 @@ var Renderer = (function () {
   /* ═══════════════════════ GRADE ═══════════════════════
      append=true → adiciona ao container sem limpar o HTML existente. */
 
-  function renderGrid(container, items, callbacks, append) {
+  function renderGrid(container, items, options, append) {
     if (!append) container.innerHTML = '';
     if (!items || items.length === 0) return;
     var frag = document.createDocumentFragment();
-    for (var i = 0; i < items.length; i++) frag.appendChild(createCard(items[i], callbacks));
+    for (var i = 0; i < items.length; i++) frag.appendChild(createCard(items[i], options));
     container.appendChild(frag);
   }
 
