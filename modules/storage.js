@@ -8,11 +8,11 @@ var Storage = (function () {
 
   var KEYS = {
     favorites: 'stv_favorites',
-    recents:   'stv_recents',
-    settings:  'stv_settings',
-    auth:      'stv_auth',
-    progress:  'stv_progress',
-    cache:     'stv_cache_'
+    recents: 'stv_recents',
+    settings: 'stv_settings',
+    auth: 'stv_auth',
+    progress: 'stv_progress',
+    cache: 'stv_cache_'
   };
 
   var MAX_RECENTS = 30;
@@ -138,18 +138,25 @@ var Storage = (function () {
       if (!all.hasOwnProperty(id)) continue;
       var p = all[id];
       arr.push({
+        // IDs
         id: id,
-        stream_id: p.type === 'movie' ? id : null,
+        stream_id: p.type === 'live' ? id : null,
         vod_id: p.type === 'movie' ? id : null,
-        series_id: p.type === 'series' ? p.series_id : null,
-        _episodeId: p.type === 'series' ? id : null,
-        name: p.name,
-        _type: p.type,
-        stream_icon: p.icon,
-        cover: p.icon,
-        series_cover: p.icon,
-        category_name: p.type === 'movie' ? 'Filmes' : 'Séries',
-        updatedAt: p.updatedAt
+        series_id: p.type === 'series' ? (p.series_id || null) : null,
+        _episodeId: p.type === 'series' ? id : null,   // ← ID do episódio (chave do progresso)
+        _episodeExt: p.episodeExt || 'mkv',               // ← extensão salva ao jogar
+
+        // Metadados
+        name: p.name || 'Sem nome',
+        _type: p.type || 'movie',
+        stream_icon: p.icon || '',
+        cover: p.icon || '',
+        series_cover: p.icon || '',
+        category_name: p.type === 'movie' ? 'Filmes' : (p.type === 'series' ? 'Séries' : 'TV'),
+
+        // Progresso
+        _resumeTime: p.time || 0,
+        updatedAt: p.updatedAt || 0
       });
     }
     arr.sort(function (a, b) { return b.updatedAt - a.updatedAt; });
@@ -183,7 +190,7 @@ var Storage = (function () {
   }
 
   function saveProgress(id, time, duration, item) {
-    if (!id || !duration) return;
+    if (!id || !duration || duration < 5) return;
     var all = _read(KEYS.progress) || {};
     var pct = (time / duration) * 100;
 
@@ -192,20 +199,22 @@ var Storage = (function () {
         delete all[id];
         _write(KEYS.progress, all);
       }
-    } else {
-      var existing = all[id] || {};
-      all[id] = {
-        name: item ? item.name : (existing.name || 'Sem nome'),
-        type: item ? (item._type || 'movie') : (existing.type || 'movie'),
-        icon: item ? (item.stream_icon || item.cover || item.series_cover || '') : (existing.icon || ''),
-        series_id: item ? (item.series_id || null) : (existing.series_id || null),
-        time: time,
-        duration: duration,
-        pct: pct,
-        updatedAt: Date.now()
-      };
-      _write(KEYS.progress, all);
+      return;
     }
+
+    var existing = all[id] || {};
+    all[id] = {
+      name: item ? (item.name || existing.name || 'Sem nome') : (existing.name || 'Sem nome'),
+      type: item ? (item._type || existing.type || 'movie') : (existing.type || 'movie'),
+      icon: item ? (item.stream_icon || item.cover || item.series_cover || existing.icon || '') : (existing.icon || ''),
+      series_id: item ? (item.series_id || existing.series_id || null) : (existing.series_id || null),
+      episodeExt: item ? (item._episodeExt || existing.episodeExt || 'mkv') : (existing.episodeExt || 'mkv'),
+      time: time,
+      duration: duration,
+      pct: pct,
+      updatedAt: Date.now()
+    };
+    _write(KEYS.progress, all);
   }
 
 
@@ -252,26 +261,26 @@ var Storage = (function () {
 
   // API pública
   return {
-    getFavorites:      getFavorites,
-    isFavorite:        isFavorite,
-    toggleFavorite:    toggleFavorite,
-    clearFavorites:    clearFavorites,
+    getFavorites: getFavorites,
+    isFavorite: isFavorite,
+    toggleFavorite: toggleFavorite,
+    clearFavorites: clearFavorites,
     getFavoritesArray: getFavoritesArray,
-    getRecents:        getRecents,
-    addRecent:         addRecent,
-    clearRecents:      clearRecents,
-    getSettings:       getSettings,
-    setSetting:        setSetting,
-    saveAuth:          saveAuth,
-    getAuth:           getAuth,
-    clearAuth:         clearAuth,
-    getProgress:       getProgress,
-    getProgressArray:  getProgressArray,
+    getRecents: getRecents,
+    addRecent: addRecent,
+    clearRecents: clearRecents,
+    getSettings: getSettings,
+    setSetting: setSetting,
+    saveAuth: saveAuth,
+    getAuth: getAuth,
+    clearAuth: clearAuth,
+    getProgress: getProgress,
+    getProgressArray: getProgressArray,
     getSeriesProgress: getSeriesProgress,
-    removeProgress:    removeProgress,
-    saveProgress:      saveProgress,
-    saveCache:         saveCache,
-    getCache:          getCache,
-    clearAll:          clearAll
+    removeProgress: removeProgress,
+    saveProgress: saveProgress,
+    saveCache: saveCache,
+    getCache: getCache,
+    clearAll: clearAll
   };
 })();

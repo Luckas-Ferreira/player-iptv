@@ -1,6 +1,7 @@
 /**
  * navigation.js — Navegação por controle remoto (Smart TV)
- * v2 — corrige: scroll topo, z-index header, sem ícones quebrados
+ * v3 — adiciona zona .cw-cards (faixa Continuar Assistindo)
+ *      corrige scroll horizontal da faixa ao navegar com setas
  */
 
 var Navigation = (function () {
@@ -24,10 +25,16 @@ var Navigation = (function () {
   var _currentScreen = 'login';
   var _focusableSelector = 'button:not([disabled]), [tabindex="0"], input, select';
 
+  /* ══════════════════════════════════════
+     Init
+  ══════════════════════════════════════ */
   function init() {
     document.addEventListener('keydown', _handleKey, false);
   }
 
+  /* ══════════════════════════════════════
+     Handler principal de teclas
+  ══════════════════════════════════════ */
   function _handleKey(e) {
     var code = e.keyCode || e.which;
     var focused = document.activeElement;
@@ -85,44 +92,56 @@ var Navigation = (function () {
     return keyCodes.indexOf(code) !== -1;
   }
 
-  /**
-   * Constraints de navegação por zona.
-   * FIX: sidebar UP não bloqueia mais — permite chegar ao topo.
-   * FIX: grid UP pode subir para category-filter corretamente.
-   */
+  /* ══════════════════════════════════════
+     Constraints de navegação por zona
+  ══════════════════════════════════════ */
   function _getConstraints(focused, direction) {
     if (!focused) return null;
+
+    var inCW = focused.closest && focused.closest('.cw-cards');
     var inSidebar = focused.closest && focused.closest('.sidebar');
     var inCategory = focused.closest && focused.closest('.category-filter');
     var inGrid = focused.closest && focused.closest('.content-grid');
     var inSettings = focused.closest && focused.closest('.settings-container');
     var inEpisodes = focused.closest && focused.closest('.episodes-panel');
 
-    if (inSidebar) {
-      if (direction === 'right') return ['.main-content'];
-      if (direction === 'left') return [];           /* borda esquerda — não sai */
-      if (direction === 'up' || direction === 'down') return ['.sidebar']; /* FIX: fica na sidebar */
+    /* ── Faixa Continuar Assistindo ── */
+    if (inCW) {
+      if (direction === 'left') return ['.cw-cards'];                              /* scroll horizontal */
+      if (direction === 'right') return ['.cw-cards'];                              /* scroll horizontal */
+      if (direction === 'up') return ['.category-filter', '.content-header', '.sidebar'];
+      if (direction === 'down') return ['.content-grid', '.content-empty'];
     }
 
+    /* ── Sidebar ── */
+    if (inSidebar) {
+      if (direction === 'right') return ['.main-content'];
+      if (direction === 'left') return [];                   /* borda esquerda — não sai */
+      if (direction === 'up' || direction === 'down') return ['.sidebar'];
+    }
+
+    /* ── Category filter ── */
     if (inCategory) {
       if (direction === 'left') return ['.category-filter', '.sidebar'];
       if (direction === 'right') return ['.category-filter'];
-      if (direction === 'down') return ['.content-grid', '.content-empty'];
-      if (direction === 'up') return ['.content-header', '.sidebar']; /* FIX: sobe pro header/sidebar */
+      if (direction === 'down') return ['.cw-cards', '.content-grid', '.content-empty']; /* desce para faixa CW primeiro */
+      if (direction === 'up') return ['.content-header', '.sidebar'];
     }
 
+    /* ── Grid principal ── */
     if (inGrid) {
       if (direction === 'left') return ['.content-grid', '.sidebar'];
       if (direction === 'right') return ['.content-grid'];
-      /* FIX: ao subir do grid, permite chegar ao category-filter ou header */
-      if (direction === 'up') return ['.content-grid', '.category-filter', '.content-header'];
-      /* sem constraint para baixo — deixa scrollar livremente */
+      if (direction === 'up') return ['.content-grid', '.cw-cards', '.category-filter', '.content-header']; /* sobe para faixa CW */
+      /* sem constraint para baixo — scroll livre */
     }
 
+    /* ── Settings ── */
     if (inSettings) {
       return ['.settings-container', '.sidebar'];
     }
 
+    /* ── Painel de episódios ── */
     if (inEpisodes) {
       return ['.episodes-panel', '.detail-content'];
     }
@@ -130,6 +149,9 @@ var Navigation = (function () {
     return null;
   }
 
+  /* ══════════════════════════════════════
+     Movimento de foco
+  ══════════════════════════════════════ */
   function _moveFocus(direction) {
     var focused = document.activeElement;
     var focusables = _getFocusables();
@@ -174,6 +196,9 @@ var Navigation = (function () {
     }
   }
 
+  /* ══════════════════════════════════════
+     Score direcional
+  ══════════════════════════════════════ */
   function _calcDirectionScore(from, to, direction) {
     var fromCX = from.left + from.width / 2;
     var fromCY = from.top + from.height / 2;
@@ -181,7 +206,6 @@ var Navigation = (function () {
     var toCY = to.top + to.height / 2;
     var dx = toCX - fromCX;
     var dy = toCY - fromCY;
-    /* Tolerância aumentada para grids onde linhas podem não alinhar perfeitamente */
     var tol = 12;
 
     switch (direction) {
@@ -201,6 +225,9 @@ var Navigation = (function () {
     return null;
   }
 
+  /* ══════════════════════════════════════
+     Focusables visíveis
+  ══════════════════════════════════════ */
   function _getFocusables() {
     var visible = [];
 
@@ -225,12 +252,31 @@ var Navigation = (function () {
     return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   }
 
-  /**
-   * FIX scroll: garante que o elemento focado fique visível,
-   * mas respeita o header fixo calculando o offset real.
-   */
+  /* ══════════════════════════════════════
+     Scroll inteligente ao focar elemento
+     — respeita header fixo
+     — faz scroll horizontal na faixa CW
+  ══════════════════════════════════════ */
   function _scrollIntoView(el) {
     try {
+      /* Scroll horizontal para faixa Continuar Assistindo */
+      var cwRow = el.closest && el.closest('.cw-cards');
+      if (cwRow) {
+        var elRect = el.getBoundingClientRect();
+        var rowRect = cwRow.getBoundingClientRect();
+        var elLeft = elRect.left - rowRect.left + cwRow.scrollLeft;
+        var elRight = elLeft + elRect.width;
+        var viewLeft = cwRow.scrollLeft;
+        var viewRight = cwRow.scrollLeft + cwRow.clientWidth;
+
+        if (elLeft < viewLeft + 8) {
+          cwRow.scrollLeft = elLeft - 8;
+        } else if (elRight > viewRight - 8) {
+          cwRow.scrollLeft = elRight - cwRow.clientWidth + 8;
+        }
+        /* Também rola verticalmente para garantir que a faixa esteja visível */
+      }
+
       var header = document.querySelector('.content-header');
       var headerH = header ? header.offsetHeight : 0;
       var rect = el.getBoundingClientRect();
@@ -244,10 +290,8 @@ var Navigation = (function () {
         var viewBot = scrollParent.scrollTop + scrollParent.clientHeight - 8;
 
         if (elTop < viewTop) {
-          /* Subindo: posiciona abaixo do header */
           scrollParent.scrollTop = elTop - headerH - 8;
         } else if (elBottom > viewBot) {
-          /* Descendo: posiciona com folga inferior */
           scrollParent.scrollTop = elBottom - scrollParent.clientHeight + 8;
         }
         return;
@@ -275,8 +319,9 @@ var Navigation = (function () {
     return null;
   }
 
-  /* --- Gestão de telas --- */
-
+  /* ══════════════════════════════════════
+     Gestão de telas / histórico
+  ══════════════════════════════════════ */
   function setScreen(name) {
     _currentScreen = name;
   }
