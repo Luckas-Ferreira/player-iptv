@@ -184,7 +184,10 @@ var Storage = (function () {
       if (!all.hasOwnProperty(id)) continue;
       var p = all[id];
       if (p.type === 'series' && String(p.series_id) === sid) {
-        if (!latest || p.updatedAt > latest.updatedAt) latest = p;
+        if (!latest || p.updatedAt > latest.updatedAt) {
+          latest = p;
+          latest.id = id;
+        }
       }
     }
     return latest;

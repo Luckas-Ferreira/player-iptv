@@ -932,16 +932,28 @@ var App = (function () {
       _state.currentEpisodes = allEps;
 
       var playBtn = document.getElementById('detail-play');
-      if (playBtn && info.episodes[snums[0]] && info.episodes[snums[0]][0]) {
-        var ep0 = info.episodes[snums[0]][0];
-        playBtn.onclick = function () {
-          _openPlayer(Object.assign({}, series, {
-            _type: 'series',
-            _episodeId: ep0.id || ep0.stream_id,
-            _episodeExt: ep0.container_extension || 'mkv',
-            name: series.name + ' – S1 E' + (ep0.episode_num || 1)
-          }));
-        };
+      if (playBtn) {
+        var seriesProg = Storage.getSeriesProgress(series.series_id);
+        if (seriesProg) {
+          playBtn.onclick = function () {
+            _openPlayer(Object.assign({}, series, {
+              _type: 'series',
+              _episodeId: seriesProg.id,
+              _episodeExt: seriesProg.episodeExt || 'mkv',
+              name: seriesProg.name
+            }));
+          };
+        } else if (info.episodes[snums[0]] && info.episodes[snums[0]][0]) {
+          var ep0 = info.episodes[snums[0]][0];
+          playBtn.onclick = function () {
+            _openPlayer(Object.assign({}, series, {
+              _type: 'series',
+              _episodeId: ep0.id || ep0.stream_id,
+              _episodeExt: ep0.container_extension || 'mkv',
+              name: series.name + ' – S1 E' + (ep0.episode_num || 1)
+            }));
+          };
+        }
       }
     }).catch(function (e) { console.warn('[App] Episódios:', e); });
   }
