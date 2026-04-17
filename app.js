@@ -403,6 +403,12 @@ var App = (function () {
     var seeAll = document.getElementById('cw-see-all-btn');
     if (!row || !container) return;
 
+    // Esconde a faixa se estivermos na própria página de continuar assistindo ou em abas que não precisam dela
+    if (filterType === 'watchlist' || filterType === 'favorites' || filterType === 'settings') {
+      row.classList.add('hidden');
+      return;
+    }
+
     var items = Storage.getProgressArray();
 
     // Filtra só pelo tipo da aba atual
