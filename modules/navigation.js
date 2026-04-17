@@ -41,9 +41,11 @@ var Navigation = (function () {
     var isInput = focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA');
 
     if (isInput) {
-      if (code === 8) return;
-      if (code === 37 || code === 39) return;
+      if (code === 8) return;                    // backspace — deixa o input tratar
+      if (code === 37 || code === 39) return;    // setas esq/dir — deixa o input tratar
       if (code === 13 || code === 195) {
+        // Se for o input de busca, NÃO faz nada — o app.js já capturou no capture phase
+        if (focused.id === 'header-search-input') return;
         e.preventDefault();
         focused.blur();
         return;

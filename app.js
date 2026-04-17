@@ -1151,26 +1151,87 @@ var App = (function () {
      BUSCA
   ══════════════════════════════════════ */
   var _searchTimeout = null;
+  function _handleSearch() {
+    var input = document.getElementById('header-search-input');
+    if (!input) return;
+    var query = (input.value || input._tvValue || '').trim();
+
+    var tab = _state.activeTab;
+
+    if (!query) {
+      if (_state.isSearching) {
+        _state.isSearching = false;
+        _state.lastSearchQuery = '';
+        _loadCurrentTab();
+      }
+      return;
+    }
+
+    _state.isSearching = true;
+    _state.lastSearchQuery = query;
+
+    var getStreams;
+    if (tab === 'live') getStreams = API.getLiveStreams;
+    else if (tab === 'movies') getStreams = API.getVodStreams;
+    else if (tab === 'series') getStreams = API.getSeriesList;
+    else { _state.isSearching = false; return; }
+
+    if (Renderer.destroyVirtualScroll) Renderer.destroyVirtualScroll();
+    Renderer.setLoading(true);
+    _startStreamingLoad(getStreams, null, query);
+
+    var titleEl = document.getElementById('content-title');
+    if (titleEl) titleEl.textContent = 'Busca: ' + query;
+  }
+
   function _bindSearchEvents() {
     var form = document.getElementById('header-search-form');
     var input = document.getElementById('header-search-input');
+    var btn = document.getElementById('header-search-btn');
 
-    function trigger() {
-      if (!input) return;
-      var query = input.value.trim();
-      if (_searchTimeout) clearTimeout(_searchTimeout);
-      _searchTimeout = setTimeout(function () {
-        if (query === _state.lastSearchQuery) return;
-        _state.lastSearchQuery = query;
+    if (!form || !input || !btn) return;
+
+    // Salva valor continuamente — TVs antigas às vezes limpam o .value no blur
+    input._tvValue = '';
+    input.addEventListener('input', function () {
+      input._tvValue = input.value;
+    });
+
+    // Quando a TV fecha o teclado virtual, dispara blur antes do Enter
+    // Restaura o valor caso tenha sido limpo
+    input.addEventListener('blur', function () {
+      if (input.value) {
+        input._tvValue = input.value;
+      } else if (input._tvValue) {
+        // Restaura na próxima microtask (após o browser limpar)
+        var saved = input._tvValue;
+        setTimeout(function () {
+          if (!input.value) input.value = saved;
+        }, 0);
+      }
+    });
+
+    // Submit normal — desktop e mobile
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      _handleSearch();
+    });
+
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      _handleSearch();
+    });
+
+    // TV: captura Enter na fase capture para rodar ANTES do navigation.js
+    input.addEventListener('keydown', function (e) {
+      var code = e.keyCode || e.which;
+      if (code === 13 || code === 195) {
+        e.preventDefault();
+        e.stopPropagation(); // bloqueia navigation.js de chamar blur
+        if (input.value) input._tvValue = input.value;
         _handleSearch();
-      }, 50);
-    }
-
-    if (form) form.addEventListener('submit', function (e) { e.preventDefault(); trigger(); });
-    if (input) {
-      input.addEventListener('change', function () { if (input.value.trim() !== '') trigger(); });
-      input.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); trigger(); } });
-    }
+      }
+    }, true); // fase capture = roda antes dos listeners do document
   }
 
   function _handleSearch() {
