@@ -1032,11 +1032,12 @@ select {
 
 .cat-btn:hover,
 .cat-btn:focus {
-  background: var(--bg-raised);
+  background: var(--bg-surface);
   color: #fff;
-  border-color: var(--border-mid);
+  border-color: var(--accent);
   transform: translateY(-1.5px);
   outline: none;
+  box-shadow: 0 0 12px var(--accent-glow), 0 0 0 2px var(--accent);
 }
 
 .cat-btn.active {
