@@ -114,7 +114,7 @@ var Storage = (function () {
 
   // --- Configurações ---
   function getSettings() {
-    var defaults = { scale: 100 };
+    var defaults = { scale: 100, showImages: true };
     var saved = _read(KEYS.settings) || {};
     return Object.assign({}, defaults, saved);
   }

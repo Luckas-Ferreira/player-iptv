@@ -37,6 +37,7 @@ var App = (function () {
   ══════════════════════════════════════ */
   function init() {
     _applySettings();
+    _updateSettingsDisplay();
     Player.init();
     Navigation.init();
     _bindLoginEvents();
@@ -283,7 +284,6 @@ var App = (function () {
     var cwPct = cwProg ? Math.min(100, cwProg.pct) : 0;
     var cwIsPortrait = item._type === 'movie' || item._type === 'series';
 
-    // Extrai "S1 E3" do nome para séries
     var cwSub = '';
     if (item._type === 'series') {
       var epMatch = cwName.match(/[–\-]\s*(S\d+\s*E\d+)/i);
@@ -298,41 +298,45 @@ var App = (function () {
     card.className = 'cw-card';
     card.tabIndex = 0;
     card.setAttribute('aria-label', cwName);
+    var showImages = (typeof Storage !== 'undefined') ? Storage.getSettings().showImages : true;
+    if (!showImages) card.classList.add('compact');
 
-    // ── Thumb wrapper ─────────────────────────
-    var thumbWrap = document.createElement('div');
-    thumbWrap.className = 'cw-thumb-wrap';
+    var thumbWrap;
+    if (showImages) {
+      thumbWrap = document.createElement('div');
+      thumbWrap.className = 'cw-thumb-wrap';
 
-    if (cwIcon) {
-      var img = document.createElement('img');
-      img.className = 'cw-thumb' + (cwIsPortrait ? ' portrait' : '');
-      img.alt = cwName;
-      img.onerror = function () {
+      if (cwIcon) {
+        var img = document.createElement('img');
+        img.className = 'cw-thumb' + (cwIsPortrait ? ' portrait' : '');
+        img.alt = cwName;
+        img.onerror = function () {
+          var ph = document.createElement('div');
+          ph.className = 'cw-thumb-placeholder';
+          ph.textContent = item._type === 'movie' ? '🎬' : item._type === 'series' ? '🎞️' : '📺';
+          if (thumbWrap.contains(img)) thumbWrap.replaceChild(ph, img);
+        };
+        if (typeof Renderer !== 'undefined' && Renderer.lazyLoadImg) {
+          Renderer.lazyLoadImg(img, cwIcon);
+        } else {
+          img.src = cwIcon;
+        }
+        thumbWrap.appendChild(img);
+      } else {
         var ph = document.createElement('div');
         ph.className = 'cw-thumb-placeholder';
         ph.textContent = item._type === 'movie' ? '🎬' : item._type === 'series' ? '🎞️' : '📺';
-        if (thumbWrap.contains(img)) thumbWrap.replaceChild(ph, img);
-      };
-      if (typeof Renderer !== 'undefined' && Renderer.lazyLoadImg) {
-        Renderer.lazyLoadImg(img, cwIcon);
-      } else {
-        img.src = cwIcon;
+        thumbWrap.appendChild(ph);
       }
-      thumbWrap.appendChild(img);
-    } else {
-      var ph = document.createElement('div');
-      ph.className = 'cw-thumb-placeholder';
-      ph.textContent = item._type === 'movie' ? '🎬' : item._type === 'series' ? '🎞️' : '📺';
-      thumbWrap.appendChild(ph);
+      card.appendChild(thumbWrap);
     }
 
-    // Badge
     var badge = document.createElement('div');
     badge.className = 'cw-badge' + (item._type === 'live' ? ' live' : '');
     badge.textContent = item._type === 'live' ? 'AO VIVO' : item._type === 'series' ? 'SÉRIE' : 'FILME';
-    thumbWrap.appendChild(badge);
+    if (showImages && thumbWrap) thumbWrap.appendChild(badge);
+    else card.appendChild(badge);
 
-    // Botão remover
     var rm = document.createElement('button');
     rm.className = 'cw-remove';
     rm.innerHTML = '&times;';
@@ -343,11 +347,9 @@ var App = (function () {
       Storage.removeProgress(rmId);
       _renderContinueWatchingRow(_state.activeTab);
     });
-    thumbWrap.appendChild(rm);
+    if (showImages && thumbWrap) thumbWrap.appendChild(rm);
+    else card.prepend(rm);
 
-    card.appendChild(thumbWrap);
-
-    // ── Barra de progresso ────────────────────
     if (cwPct > 1) {
       var pbar = document.createElement('div');
       pbar.className = 'cw-progress-bar';
@@ -358,13 +360,11 @@ var App = (function () {
       card.appendChild(pbar);
     }
 
-    // ── Info ──────────────────────────────────
     var info = document.createElement('div');
     info.className = 'cw-info';
 
     var nameEl = document.createElement('div');
     nameEl.className = 'cw-name';
-    // Para série: remove " – S1E3" do nome exibido
     var displayName = cwName;
     if (item._type === 'series') {
       displayName = cwName.replace(/\s*[–\-]\s*S\d+\s*E\d+.*/i, '').trim();
@@ -388,7 +388,6 @@ var App = (function () {
 
     card.appendChild(info);
 
-    // ── Eventos ───────────────────────────────
     card.addEventListener('click', function () { _playItem(item); });
     card.addEventListener('keydown', function (e) {
       if (e.keyCode === 13 || e.keyCode === 32) { e.preventDefault(); _playItem(item); }
@@ -1092,9 +1091,18 @@ var App = (function () {
   function _bindSettingsEvents() {
     var si = document.getElementById('size-increase'), sd = document.getElementById('size-decrease');
     var cf = document.getElementById('clear-favorites'), cr = document.getElementById('clear-recents');
-    var ca = document.getElementById('clear-all');
+    var ca = document.getElementById('clear-all'), ti = document.getElementById('toggle-images');
     if (si) si.addEventListener('click', function () { _changeScale(10); });
     if (sd) sd.addEventListener('click', function () { _changeScale(-10); });
+    if (ti) ti.addEventListener('click', function () {
+      var s = Storage.getSettings();
+      var newVal = !s.showImages;
+      Storage.setSetting('showImages', newVal);
+      _updateSettingsDisplay();
+      _applySettings();
+      // Força recarregamento da aba atual para aplicar na grade
+      _loadCurrentTab();
+    });
     if (cf) cf.addEventListener('click', function () { Storage.clearFavorites(); Renderer.showToast('Favoritos removidos', 'info'); });
     if (cr) cr.addEventListener('click', function () { Storage.clearRecents(); Renderer.showToast('Histórico limpo', 'info'); });
     if (ca) ca.addEventListener('click', function () {
@@ -1115,10 +1123,22 @@ var App = (function () {
     var s = Storage.getSettings();
     _state.uiScale = s.scale || 100;
     document.documentElement.style.fontSize = (_state.uiScale / 100 * 16) + 'px';
+    
+    var grid = document.getElementById('content-grid');
+    if (grid) {
+      if (s.showImages === false) grid.classList.add('no-images');
+      else grid.classList.remove('no-images');
+    }
   }
 
   function _updateSettingsDisplay() {
+    var s = Storage.getSettings();
     var d = document.getElementById('size-display'); if (d) d.textContent = _state.uiScale + '%';
+    var ti = document.getElementById('toggle-images');
+    if (ti) {
+      ti.textContent = s.showImages ? 'Ativado' : 'Desativado';
+      ti.className = 'btn-toggle ' + (s.showImages ? 'active' : '');
+    }
     var a = document.getElementById('settings-account');
     if (a) {
       var c = Auth.getCredentials();

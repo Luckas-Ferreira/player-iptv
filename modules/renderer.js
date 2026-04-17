@@ -103,8 +103,10 @@ var Renderer = (function () {
     var isPortrait = (type === 'movie' || type === 'series');
     var isFav = (typeof Storage !== 'undefined') ? Storage.isFavorite(id) : false;
 
+    var showImages = (typeof Storage !== 'undefined') ? Storage.getSettings().showImages : true;
+
     var card = el('div', {
-      className: 'card',
+      className: 'card' + (!showImages ? ' compact' : ''),
       role: 'listitem',
       tabIndex: 0,
       'aria-label': name
@@ -112,19 +114,21 @@ var Renderer = (function () {
 
     // Imagem ou placeholder
     var thumb;
-    if (icon) {
-      thumb = el('img', {
-        className: 'card-thumb' + (isPortrait ? ' portrait' : ''),
-        alt: name,
-        width: isPortrait ? '120' : '160',
-        height: isPortrait ? '180' : '90',
-        loading: 'lazy'
-      });
-      lazyLoadImg(thumb, icon);
-    } else {
-      thumb = createPlaceholder(type, name, isPortrait);
+    if (showImages) {
+      if (icon) {
+        thumb = el('img', {
+          className: 'card-thumb' + (isPortrait ? ' portrait' : ''),
+          alt: name,
+          width: isPortrait ? '120' : '160',
+          height: isPortrait ? '180' : '90',
+          loading: 'lazy'
+        });
+        lazyLoadImg(thumb, icon);
+      } else {
+        thumb = createPlaceholder(type, name, isPortrait);
+      }
+      card.appendChild(thumb);
     }
-    card.appendChild(thumb);
 
     // Badge AO VIVO
     if (type === 'live') {
