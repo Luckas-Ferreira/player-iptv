@@ -134,31 +134,43 @@ var Storage = (function () {
   function getProgressArray() {
     var all = _read(KEYS.progress) || {};
     var arr = [];
+    var seriesMap = {};
+
     for (var id in all) {
       if (!all.hasOwnProperty(id)) continue;
       var p = all[id];
-      arr.push({
-        // IDs
+      var item = {
         id: id,
         stream_id: p.type === 'live' ? id : null,
         vod_id: p.type === 'movie' ? id : null,
         series_id: p.type === 'series' ? (p.series_id || null) : null,
-        _episodeId: p.type === 'series' ? id : null,   // ← ID do episódio (chave do progresso)
-        _episodeExt: p.episodeExt || 'mkv',               // ← extensão salva ao jogar
-
-        // Metadados
+        _episodeId: p.type === 'series' ? id : null,
+        _episodeExt: p.episodeExt || 'mkv',
         name: p.name || 'Sem nome',
         _type: p.type || 'movie',
         stream_icon: p.icon || '',
         cover: p.icon || '',
         series_cover: p.icon || '',
         category_name: p.type === 'movie' ? 'Filmes' : (p.type === 'series' ? 'Séries' : 'TV'),
-
-        // Progresso
         _resumeTime: p.time || 0,
         updatedAt: p.updatedAt || 0
-      });
+      };
+
+      if (p.type === 'series' && p.series_id) {
+        var sid = String(p.series_id);
+        if (!seriesMap[sid] || p.updatedAt > seriesMap[sid].updatedAt) {
+          seriesMap[sid] = item;
+        }
+      } else {
+        arr.push(item);
+      }
     }
+
+    // Adiciona o episódio mais recente de cada série ao array final
+    for (var s in seriesMap) {
+      if (seriesMap.hasOwnProperty(s)) arr.push(seriesMap[s]);
+    }
+
     arr.sort(function (a, b) { return b.updatedAt - a.updatedAt; });
     return arr;
   }

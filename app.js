@@ -182,6 +182,8 @@ var App = (function () {
   }
 
   function _activateTab(tabName) {
+
+    Renderer.destroyVirtualScroll();
     if (typeof Renderer !== 'undefined' && Renderer.destroyVirtualScroll) {
       Renderer.destroyVirtualScroll();
     }
@@ -265,9 +267,7 @@ var App = (function () {
 
     // Na watchlist, clique sempre vai direto ao player com retomada
     _renderGrid(items, {
-      onPlay: function (item) {
-        _openPlayer(item);  // vai direto, sem passar pelo detalhe
-      },
+      onPlay: _playItem,
       onRemove: function (item) {
         var id = item._episodeId || item.vod_id || item.id;
         Storage.removeProgress(String(id));
@@ -389,9 +389,9 @@ var App = (function () {
     card.appendChild(info);
 
     // ── Eventos ───────────────────────────────
-    card.addEventListener('click', function () { _openPlayer(item); });
+    card.addEventListener('click', function () { _playItem(item); });
     card.addEventListener('keydown', function (e) {
-      if (e.keyCode === 13 || e.keyCode === 32) { e.preventDefault(); _openPlayer(item); }
+      if (e.keyCode === 13 || e.keyCode === 32) { e.preventDefault(); _playItem(item); }
     });
 
     return card;
@@ -719,12 +719,7 @@ var App = (function () {
 
     var type = item._type || 'live';
 
-    // Item vindo da watchlist de séries: tem _episodeId mas pode não ter series_id
-    // Vai direto pro player sem abrir o painel de detalhe
-    if (type === 'series' && item._episodeId) {
-      _openPlayer(item);
-      return;
-    }
+
 
     if (type === 'live') _openPlayer(item);
     else if (type === 'movie') _openDetail(item);

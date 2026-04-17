@@ -1754,6 +1754,7 @@ select {
   overflow: hidden;
   cursor: pointer;
   transition: border-color var(--trans), background var(--trans);
+  position: relative;
   /* Fallback margem para gap */
   margin-right: 12px;
   margin-bottom: 12px;
