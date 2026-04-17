@@ -23,6 +23,8 @@ var App = (function () {
     mode: 'xtream',
     activeTab: 'live',
     activeCategory: '',
+    isSearching: false,
+    lastSearchQuery: '',
     allItems: [],
     renderedCount: 0,
     isLoadingMore: false,
@@ -247,7 +249,11 @@ var App = (function () {
       if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
       else searchBar.classList.add('hidden');
     }
-    if (searchInput) {
+    /* 
+       OTIMIZAÇÃO v4: Só limpa a busca se mudarmos para uma aba que NÃO seja a mesma 
+       ou se sairmos de Filmes/Séries para Live/Configs.
+    */
+    if (searchInput && _state.activeTab !== tabName) {
       searchInput.value = '';
       _state.isSearching = false;
     }
@@ -998,22 +1004,40 @@ var App = (function () {
   /* ══════════════════════════════════════
      BUSCA NO CABEÇALHO
   ══════════════════════════════════════ */
+  var _searchTimeout = null;
   function _bindSearchEvents() {
     var form = document.getElementById('header-search-form');
     var input = document.getElementById('header-search-input');
+    
+    function trigger() {
+      if (!input) return;
+      var query = input.value.trim();
+      if (_searchTimeout) clearTimeout(_searchTimeout);
+      _searchTimeout = setTimeout(function() {
+        if (query === _state.lastSearchQuery) return;
+        _state.lastSearchQuery = query;
+        _handleSearch();
+      }, 50);
+    }
 
     if (form) {
       form.addEventListener('submit', function (e) {
         e.preventDefault();
-        _handleSearch();
-        if (input) input.blur();
+        trigger();
       });
     }
 
     if (input) {
-      input.addEventListener('change', _handleSearch);
+      /* Captura o 'change' (blur) e 'keydown' (Enter) sem resetar o campo */
+      input.addEventListener('change', function() {
+        if (input.value.trim() !== '') trigger();
+      });
+      
       input.addEventListener('keydown', function (e) {
-        if (e.keyCode === 13) { e.preventDefault(); _handleSearch(); input.blur(); }
+        if (e.keyCode === 13) {
+          e.preventDefault();
+          trigger();
+        }
       });
     }
   }
@@ -1025,7 +1049,12 @@ var App = (function () {
     var tab = _state.activeTab;
 
     if (!query) {
-      if (_state.isSearching) { _state.isSearching = false; _loadCurrentTab(); }
+      /* Só reseta se o usuário apagou o texto manualmente estando em modo busca */
+      if (_state.isSearching) {
+        _state.isSearching = false;
+        _state.lastSearchQuery = '';
+        _loadCurrentTab();
+      }
       return;
     }
 
