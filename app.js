@@ -1089,11 +1089,8 @@ var App = (function () {
      CONFIGURAÇÕES
   ══════════════════════════════════════ */
   function _bindSettingsEvents() {
-    var si = document.getElementById('size-increase'), sd = document.getElementById('size-decrease');
     var cf = document.getElementById('clear-favorites'), cr = document.getElementById('clear-recents');
     var ca = document.getElementById('clear-all'), ti = document.getElementById('toggle-images');
-    if (si) si.addEventListener('click', function () { _changeScale(10); });
-    if (sd) sd.addEventListener('click', function () { _changeScale(-10); });
     if (ti) ti.addEventListener('click', function () {
       var s = Storage.getSettings();
       var newVal = !s.showImages;
@@ -1111,19 +1108,9 @@ var App = (function () {
     });
   }
 
-  function _changeScale(delta) {
-    var s = Math.max(70, Math.min(160, _state.uiScale + delta));
-    _state.uiScale = s;
-    Storage.setSetting('scale', s);
-    document.documentElement.style.fontSize = (s / 100 * 16) + 'px';
-    var d = document.getElementById('size-display'); if (d) d.textContent = s + '%';
-  }
-
   function _applySettings() {
     var s = Storage.getSettings();
-    _state.uiScale = s.scale || 100;
-    document.documentElement.style.fontSize = (_state.uiScale / 100 * 16) + 'px';
-    
+
     var grid = document.getElementById('content-grid');
     if (grid) {
       if (s.showImages === false) grid.classList.add('no-images');
@@ -1133,7 +1120,6 @@ var App = (function () {
 
   function _updateSettingsDisplay() {
     var s = Storage.getSettings();
-    var d = document.getElementById('size-display'); if (d) d.textContent = _state.uiScale + '%';
     var ti = document.getElementById('toggle-images');
     if (ti) {
       ti.textContent = s.showImages ? 'Ativado' : 'Desativado';

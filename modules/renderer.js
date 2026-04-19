@@ -176,9 +176,11 @@ var Renderer = (function () {
     body.appendChild(cat);
     card.appendChild(body);
 
-    /* ── Interações ─────────────────────────────────────── */
+    /* ── Interações ──────────────────────────────────────── */
     var lpTimer = null, lpStart = 0, lpRaf = null;
     var ignorePlay = false, isKeyDown = false;
+    /* Flag para evitar dupla chamada click+keyup em TVs antigas */
+    var _clickHandled = false;
 
     function cancelLP() {
       clearTimeout(lpTimer);
@@ -197,14 +199,18 @@ var Renderer = (function () {
     card.addEventListener('click', function (e) {
       if (favBtn.contains(e.target)) return;
       if (ignorePlay) return;
+      _clickHandled = true;
+      /* Reseta a flag após um frame para não bloquear clicks futuros */
+      setTimeout(function () { _clickHandled = false; }, 100);
       if (options && options.onPlay) options.onPlay(item);
     });
 
     card.addEventListener('keydown', function (e) {
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        /* NÃO usa stopPropagation — navigation.js também precisa receber para chamar .click() em TVs antigas */
         if (isKeyDown) return;
-        isKeyDown = true; ignorePlay = false;
+        isKeyDown = true; ignorePlay = false; _clickHandled = false;
         lpStart = Date.now();
         card.classList.add('lp-active');
         lpRaf = requestAnimationFrame(tickLP);
@@ -227,8 +233,10 @@ var Renderer = (function () {
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
         e.preventDefault();
         isKeyDown = false;
-        if (lpTimer) { cancelLP(); return; }
-        if (!ignorePlay && options && options.onPlay) options.onPlay(item);
+        if (lpTimer) { cancelLP(); }
+        /* Só dispara onPlay pelo keyup se o click não já o fez (evita dupla chamada em TV antiga) */
+        if (!ignorePlay && !_clickHandled && options && options.onPlay) options.onPlay(item);
+        _clickHandled = false;
       }
     });
 
