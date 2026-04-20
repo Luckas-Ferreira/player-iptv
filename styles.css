@@ -1055,6 +1055,20 @@ select {
   object-fit: cover;
   background: var(--bg-raised);
   display: block;
+  /* Fallback para TVs sem aspect-ratio */
+  min-height: 90px;
+}
+
+/* Loading shimmer enquanto imagem carrega */
+.card-thumb:not([data-loaded="1"]) {
+  background: linear-gradient(90deg, var(--bg-raised) 25%, var(--bg-surface) 50%, var(--bg-raised) 75%);
+  background-size: 200% 100%;
+  animation: imgShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes imgShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Barra de progresso no card */
@@ -1150,6 +1164,8 @@ select {
 
 .card-thumb.portrait {
   aspect-ratio: 2/3;
+  /* Fallback para TVs sem aspect-ratio */
+  min-height: 180px;
 }
 
 /* Placeholder sem imagem — muito mais elegante */
@@ -1164,6 +1180,8 @@ select {
   gap: 10px;
   position: relative;
   overflow: hidden;
+  /* Fallback para TVs sem aspect-ratio */
+  min-height: 90px;
 }
 
 .card-placeholder::before {

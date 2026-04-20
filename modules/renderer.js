@@ -3,40 +3,53 @@
  *
  * OTIMIZAÇÕES PARA SMART TV ANTIGA:
  * 1. Sem virtual scroll — renderiza por chunks via app.js (2s entre chunks)
- * 2. IMGMAX = 1 — apenas 1 imagem carrega por vez
+ * 2. IMGMAX = 2 — 2 imagens por vez (evita bloqueio por 1 travada)
  * 3. DocumentFragment para batch de DOM mutations
  * 4. IntersectionObserver para lazy load de imagens
  * 5. Cleanup de observer ao trocar de categoria
+ * 6. Timeout de 10s por imagem — evita travar a fila
+ * 7. Retry único com delay — rede instável de TV antiga
+ * 8. Placeholder em vez de esconder — nunca fica "vazio"
  */
 
 var Renderer = (function () {
   'use strict';
 
   /* ─── CONFIGURAÇÃO ──────────────────────────────────────── */
-  var IMGMAX = 1;
-  var IMG_DELAY = 80;
+  var IMGMAX = 2;          /* 2 simultâneas — evita bloqueio se 1 travar */
+  var IMG_DELAY = 100;     /* ms entre tentativas de processar fila */
+  var IMG_TIMEOUT = 10000; /* 10s timeout por imagem */
+  var IMG_RETRY_DELAY = 2000; /* ms antes de tentar retry */
 
   /* ─── FILA DE IMAGENS ───────────────────────────────────── */
   var imgQueue = [];
   var imgLoading = 0;
   var imgTimer = null;
   var globalObserver = null;
+  var imgTimeouts = {};    /* timerId → imgEl — rastreia timeouts ativos */
+  var imgIdCounter = 0;
 
   function getObserver() {
     if (globalObserver) return globalObserver;
     if (!('IntersectionObserver' in window)) return null;
-    globalObserver = new IntersectionObserver(function (entries) {
-      for (var i = 0; i < entries.length; i++) {
-        if (!entries[i].isIntersecting) continue;
-        globalObserver.unobserve(entries[i].target);
-        var el2 = entries[i].target;
-        var s = el2.getAttribute('data-src');
-        if (s && el2.getAttribute('data-loaded') !== '1') {
-          imgQueue.push({ el: el2, src: s });
-          scheduleProcess();
+    try {
+      globalObserver = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (!entries[i].isIntersecting) continue;
+          try { globalObserver.unobserve(entries[i].target); } catch (e) {}
+          var el2 = entries[i].target;
+          var s = el2.getAttribute('data-src');
+          if (s && el2.getAttribute('data-loaded') !== '1') {
+            imgQueue.push({ el: el2, src: s, retry: 0 });
+            scheduleProcess();
+          }
         }
-      }
-    }, { rootMargin: '400px 0px', threshold: 0 });
+      }, { rootMargin: '150px 0px', threshold: 0 }); /* 150px — menor preload, menos pressão de memória */
+    } catch (e) {
+      /* IntersectionObserver pode falhar em TVs muito antigas */
+      globalObserver = null;
+      return null;
+    }
     return globalObserver;
   }
 
@@ -52,24 +65,71 @@ var Renderer = (function () {
       if (!img || !img.parentNode) continue;
       if (img.getAttribute('data-loaded') === '1') continue;
       imgLoading++;
-      loadImg(img, entry.src);
+      loadImg(img, entry.src, entry.retry || 0);
     }
   }
 
-  function loadImg(imgEl, src) {
-    imgEl.onload = function () {
+  function loadImg(imgEl, src, retryCount) {
+    var _imgId = ++imgIdCounter;
+    var _done = false;
+
+    function finish(success) {
+      if (_done) return;
+      _done = true;
+      /* Limpa timeout */
+      if (imgTimeouts[_imgId]) { clearTimeout(imgTimeouts[_imgId]); delete imgTimeouts[_imgId]; }
       imgEl.onload = imgEl.onerror = null;
       imgLoading = Math.max(0, imgLoading - 1);
-      imgEl.setAttribute('data-loaded', '1');
+
+      if (success) {
+        imgEl.setAttribute('data-loaded', '1');
+        imgEl.style.display = '';
+      } else if (retryCount < 1 && imgEl.parentNode) {
+        /* Retry 1x após delay — rede instável de TV antiga */
+        setTimeout(function () {
+          if (!imgEl.parentNode) return;
+          imgQueue.push({ el: imgEl, src: src, retry: retryCount + 1 });
+          scheduleProcess();
+        }, IMG_RETRY_DELAY);
+      } else {
+        /* Falhou definitivamente — mostra placeholder em vez de esconder */
+        _replaceWithPlaceholder(imgEl);
+      }
       scheduleProcess();
-    };
-    imgEl.onerror = function () {
-      imgEl.onload = imgEl.onerror = null;
-      imgLoading = Math.max(0, imgLoading - 1);
-      imgEl.style.display = 'none';
-      scheduleProcess();
-    };
+    }
+
+    imgEl.onload = function () { finish(true); };
+    imgEl.onerror = function () { finish(false); };
+
+    /* Timeout de segurança — evita 1 imagem travar toda a fila */
+    imgTimeouts[_imgId] = setTimeout(function () {
+      if (_done) return;
+      /* Aborta o carregamento pendente */
+      try { imgEl.src = ''; } catch (e) {}
+      finish(false);
+    }, IMG_TIMEOUT);
+
     imgEl.src = src;
+  }
+
+  /**
+   * Substitui <img> quebrada por placeholder visual.
+   * Em vez de display:none (que some com o card), mostra ícone + nome.
+   */
+  function _replaceWithPlaceholder(imgEl) {
+    if (!imgEl || !imgEl.parentNode) return;
+    var card = imgEl.parentNode;
+    var name = imgEl.getAttribute('alt') || '';
+    var isPortrait = imgEl.className && imgEl.className.indexOf('portrait') !== -1;
+    var type = 'movie';
+    /* Infere tipo pelo contexto do card */
+    if (card.querySelector('.card-live-badge')) type = 'live';
+
+    var ph = createPlaceholder(type, name, isPortrait);
+    try { card.replaceChild(ph, imgEl); } catch (e) {
+      /* Fallback: esconde a imagem */
+      imgEl.style.display = 'none';
+    }
   }
 
   function lazyLoadImg(imgEl, src) {
@@ -78,7 +138,8 @@ var Renderer = (function () {
     if (obs) {
       obs.observe(imgEl);
     } else {
-      imgQueue.push({ el: imgEl, src: src });
+      /* Sem IntersectionObserver — enfileira direto (TV muito antiga) */
+      imgQueue.push({ el: imgEl, src: src, retry: 0 });
       scheduleProcess();
     }
   }
@@ -120,8 +181,7 @@ var Renderer = (function () {
           className: 'card-thumb' + (isPortrait ? ' portrait' : ''),
           alt: name,
           width: isPortrait ? '120' : '160',
-          height: isPortrait ? '180' : '90',
-          loading: 'lazy'
+          height: isPortrait ? '180' : '90'
         });
         lazyLoadImg(thumb, icon);
       } else {
@@ -299,8 +359,17 @@ var Renderer = (function () {
     Pager.destroy();
     if (globalObserver) {
       var imgs = document.querySelectorAll('img[data-src]:not([data-loaded="1"])');
-      for (var i = 0; i < imgs.length; i++) globalObserver.unobserve(imgs[i]);
+      for (var i = 0; i < imgs.length; i++) {
+        try { globalObserver.unobserve(imgs[i]); } catch (e) {}
+      }
     }
+    /* Cancela todos os timeouts de imagens pendentes */
+    for (var tid in imgTimeouts) {
+      if (imgTimeouts.hasOwnProperty(tid)) {
+        clearTimeout(imgTimeouts[tid]);
+      }
+    }
+    imgTimeouts = {};
     imgQueue = [];
     imgLoading = 0;
     if (imgTimer) { clearTimeout(imgTimer); imgTimer = null; }
@@ -586,7 +655,7 @@ var Renderer = (function () {
         });
         var thumb;
         if (icon) {
-          thumb = el('img', { className: 'search-result-thumb', alt: item.name || '', loading: 'lazy' });
+          thumb = el('img', { className: 'search-result-thumb', alt: item.name || '' });
           lazyLoadImg(thumb, icon);
         } else {
           thumb = el('div', {

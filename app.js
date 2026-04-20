@@ -832,8 +832,8 @@ var App = (function () {
     if (ep.info && ep.info.movie_image) {
       var img = document.createElement('img');
       img.className = 'episode-thumb'; img.alt = ep.title || '';
-      img.src = ep.info.movie_image;
-      img.onerror = function () { if (this.parentNode) this.parentNode.replaceChild(thumb, this); };
+      /* Usa a fila de imagens do Renderer (com timeout + retry) em vez de carregar direto */
+      Renderer.lazyLoadImg(img, ep.info.movie_image);
       card.appendChild(img);
     } else { card.appendChild(thumb); }
 
