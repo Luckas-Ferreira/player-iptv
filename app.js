@@ -11,7 +11,7 @@
 var App = (function () {
   'use strict';
 
-  var MAXITEMS = 2000;
+  var MAXITEMS = 800;
 
   var _state = {
     mode: 'xtream',
@@ -20,10 +20,7 @@ var App = (function () {
     isSearching: false,
     lastSearchQuery: '',
     allItems: [],
-    renderedCount: 0,
-    isLoadingMore: false,
     demoData: null,
-    uiScale: 100,
     miniActive: false,
     miniItem: null,
     loadToken: 0,
@@ -230,10 +227,19 @@ var App = (function () {
 
     if (tabName === 'settings') {
       if (grid) grid.style.display = 'none';
-      if (header) header.style.display = 'none';
       if (loading) loading.classList.add('hidden');
       if (empty) empty.classList.add('hidden');
       if (stpanel) stpanel.classList.remove('hidden');
+      /* Mostra o header com o título "Configurações" — consistência visual com outras abas */
+      if (header) header.style.display = '';
+      var titleEl2 = document.getElementById('content-title');
+      if (titleEl2) titleEl2.textContent = 'Configurações';
+      /* Esconde filtro de categoria e busca (não fazem sentido em configurações) */
+      var cf2 = document.getElementById('category-filter');
+      if (cf2) cf2.innerHTML = '';
+      /* Esconde a faixa "Continuar Assistindo" */
+      var cwRow = document.getElementById('continue-watching-row');
+      if (cwRow) cwRow.classList.add('hidden');
       _updateSettingsDisplay();
       return;
     }
@@ -249,152 +255,7 @@ var App = (function () {
     _loadCurrentTab();
   }
 
-  /* ══════════════════════════════════════
-     WATCHLIST ROW — visual redesenhado
-  ══════════════════════════════════════ */
-  function _renderWatchlist() {
-    Renderer.setLoading(false);
-    var items = Storage.getProgressArray();
-    document.getElementById('category-filter').innerHTML = '';
 
-    if (!items || items.length === 0) {
-      Renderer.setEmpty(true);
-      return;
-    }
-
-    Renderer.setEmpty(false);
-    var grid = document.getElementById('content-grid');
-    if (grid) grid.innerHTML = '';
-
-    // Na watchlist, clique sempre vai direto ao player com retomada
-    _renderGrid(items, {
-      onPlay: _playItem,
-      onRemove: function (item) {
-        var id = item._episodeId || item.vod_id || item.id;
-        Storage.removeProgress(String(id));
-        _renderWatchlist();
-      }
-    });
-  }
-
-  function _createCWCard(item) {
-    var cwIcon = item.stream_icon || item.cover || item.series_cover || '';
-    var cwName = item.name || 'Sem nome';
-    var cwProg = Storage.getProgress(item._episodeId || item.vod_id || item.stream_id || item.id);
-    var cwPct = cwProg ? Math.min(100, cwProg.pct) : 0;
-    var cwIsPortrait = item._type === 'movie' || item._type === 'series';
-
-    var cwSub = '';
-    if (item._type === 'series') {
-      var epMatch = cwName.match(/[–\-]\s*(S\d+\s*E\d+)/i);
-      if (epMatch) cwSub = epMatch[1].trim();
-      else {
-        var epMatch2 = cwName.match(/S\d+\s*E\d+/i);
-        if (epMatch2) cwSub = epMatch2[0];
-      }
-    }
-
-    var card = document.createElement('div');
-    card.className = 'cw-card';
-    card.tabIndex = 0;
-    card.setAttribute('aria-label', cwName);
-    var showImages = (typeof Storage !== 'undefined') ? Storage.getSettings().showImages : true;
-    if (!showImages) card.classList.add('compact');
-
-    var thumbWrap;
-    if (showImages) {
-      thumbWrap = document.createElement('div');
-      thumbWrap.className = 'cw-thumb-wrap';
-
-      if (cwIcon) {
-        var img = document.createElement('img');
-        img.className = 'cw-thumb' + (cwIsPortrait ? ' portrait' : '');
-        img.alt = cwName;
-        img.onerror = function () {
-          var ph = document.createElement('div');
-          ph.className = 'cw-thumb-placeholder';
-          ph.textContent = item._type === 'movie' ? '🎬' : item._type === 'series' ? '🎞️' : '📺';
-          if (thumbWrap.contains(img)) thumbWrap.replaceChild(ph, img);
-        };
-        if (typeof Renderer !== 'undefined' && Renderer.lazyLoadImg) {
-          Renderer.lazyLoadImg(img, cwIcon);
-        } else {
-          img.src = cwIcon;
-        }
-        thumbWrap.appendChild(img);
-      } else {
-        var ph = document.createElement('div');
-        ph.className = 'cw-thumb-placeholder';
-        ph.textContent = item._type === 'movie' ? '🎬' : item._type === 'series' ? '🎞️' : '📺';
-        thumbWrap.appendChild(ph);
-      }
-      card.appendChild(thumbWrap);
-    }
-
-    var badge = document.createElement('div');
-    badge.className = 'cw-badge' + (item._type === 'live' ? ' live' : '');
-    badge.textContent = item._type === 'live' ? 'AO VIVO' : item._type === 'series' ? 'SÉRIE' : 'FILME';
-    if (showImages && thumbWrap) thumbWrap.appendChild(badge);
-    else card.appendChild(badge);
-
-    var rm = document.createElement('button');
-    rm.className = 'cw-remove';
-    rm.innerHTML = '&times;';
-    rm.title = 'Remover';
-    rm.addEventListener('click', function (e) {
-      e.stopPropagation();
-      var rmId = String(item._episodeId || item.vod_id || item.stream_id || item.id || '');
-      Storage.removeProgress(rmId);
-      _renderContinueWatchingRow(_state.activeTab);
-    });
-    if (showImages && thumbWrap) thumbWrap.appendChild(rm);
-    else card.prepend(rm);
-
-    if (cwPct > 1) {
-      var pbar = document.createElement('div');
-      pbar.className = 'cw-progress-bar';
-      var pfill = document.createElement('div');
-      pfill.className = 'cw-progress-fill';
-      pfill.style.width = cwPct + '%';
-      pbar.appendChild(pfill);
-      card.appendChild(pbar);
-    }
-
-    var info = document.createElement('div');
-    info.className = 'cw-info';
-
-    var nameEl = document.createElement('div');
-    nameEl.className = 'cw-name';
-    var displayName = cwName;
-    if (item._type === 'series') {
-      displayName = cwName.replace(/\s*[–\-]\s*S\d+\s*E\d+.*/i, '').trim();
-    }
-    nameEl.textContent = displayName;
-    info.appendChild(nameEl);
-
-    if (cwSub) {
-      var subEl = document.createElement('div');
-      subEl.className = 'cw-sub';
-      subEl.textContent = cwSub;
-      info.appendChild(subEl);
-    }
-
-    if (cwPct > 1) {
-      var pctEl = document.createElement('div');
-      pctEl.className = 'cw-pct';
-      pctEl.textContent = Math.round(cwPct) + '% assistido';
-      info.appendChild(pctEl);
-    }
-
-    card.appendChild(info);
-
-    card.addEventListener('click', function () { _playItem(item); });
-    card.addEventListener('keydown', function (e) {
-      if (e.keyCode === 13 || e.keyCode === 32) { e.preventDefault(); _playItem(item); }
-    });
-
-    return card;
-  }
 
   function _renderContinueWatchingRow(filterType) {
     var row = document.getElementById('continue-watching-row');
@@ -429,7 +290,16 @@ var App = (function () {
     var shown = items.slice(0, 10);
 
     for (var i = 0; i < shown.length; i++) {
-      container.appendChild(_createCWCard(shown[i]));
+      var item = shown[i];
+      container.appendChild(Renderer.createCard(item, {
+        showTypeBadge: true,
+        onPlay: _playItem,
+        onRemove: function (targetItem) {
+          var id = String(targetItem._episodeId || targetItem.vod_id || targetItem.stream_id || targetItem.id || '');
+          Storage.removeProgress(id);
+          _renderContinueWatchingRow(_state.activeTab);
+        }
+      }));
     }
 
     if (seeAll) {
@@ -478,15 +348,14 @@ var App = (function () {
     var grid = document.getElementById('content-grid');
     var opts = { onPlay: _playItem, onFavorite: _onFavoriteToggle };
 
-    if (grid) grid.innerHTML = '';
     _state.allItems = [];
     _state.originalItems = [];
-    _state.renderedCount = 0;
-    _state.isLoadingMore = false;
-
     var firstChunkReceived = false;
     var fullItems = [];
     Renderer.setEmpty(false);
+
+    /* Inicia o pager (limpa o grid internamente) */
+    Renderer.Pager.init(grid, opts);
 
     getStreams(categoryId, function (chunk) {
       if (token !== _state.loadToken) return;
@@ -523,13 +392,15 @@ var App = (function () {
       _state.allItems = _state.allItems.concat(validItems);
       if (_state.allItems.length > limit) _state.allItems = _state.allItems.slice(0, limit);
 
-      if (grid) Renderer.renderGrid(grid, validItems, opts, true);
+      /* Entrega ao pager — ele decide quando renderizar */
+      Renderer.Pager.append(validItems);
 
     }, search).then(function (allItems) {
       if (token !== _state.loadToken) return;
 
       if (fullItems.length === 0 && allItems && allItems.length) {
-        var q = search ? search.toLowerCase() : '';
+        /* Sem streaming — recebeu tudo de uma vez */
+        var q   = search ? search.toLowerCase() : '';
         var lim = search ? 15000 : MAXITEMS;
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];
@@ -539,17 +410,16 @@ var App = (function () {
           }
           if (fullItems.length >= lim) break;
         }
-      }
-      _state.originalItems = fullItems;
-
-      if (!firstChunkReceived) {
-        Renderer.setLoading(false);
         _state.allItems = fullItems;
-        if (grid) Renderer.renderGrid(grid, _state.allItems, opts, false);
-        Renderer.setEmpty(_state.allItems.length === 0);
-      } else {
-        Renderer.setEmpty(_state.allItems.length === 0);
+        if (!firstChunkReceived) {
+          Renderer.setLoading(false);
+          if (grid) grid.style.display = '';
+        }
+        Renderer.Pager.append(fullItems);
       }
+      _state.originalItems = fullItems.length ? fullItems : _state.allItems;
+      Renderer.setEmpty(_state.allItems.length === 0);
+
     }).catch(function (e) {
       if (token !== _state.loadToken) return;
       _handleLoadError(e);
@@ -624,8 +494,7 @@ var App = (function () {
         : filtered;
 
       Renderer.setLoading(false);
-      _state.renderedCount = 0;
-      _loadMoreItems();
+      _renderGrid(_state.allItems);
       _state.originalItems = _state.allItems;
       Renderer.setEmpty(_state.allItems.length === 0);
     }).catch(_handleLoadError);
@@ -645,41 +514,10 @@ var App = (function () {
     var grid = document.getElementById('content-grid');
     if (!grid) return;
     _state.allItems = items || [];
-    _state.renderedCount = 0;
-    _state.isLoadingMore = false;
-    grid.innerHTML = '';
-
     var opts = customOptions || { onPlay: _playItem, onFavorite: _onFavoriteToggle };
-    Renderer.renderGrid(grid, _state.allItems.slice(0, 40), opts, false);
-    _state.renderedCount = Math.min(40, _state.allItems.length);
-
+    Renderer.Pager.init(grid, opts);
+    Renderer.Pager.append(_state.allItems);
     Renderer.setEmpty(_state.allItems.length === 0);
-  }
-
-  function _loadMoreItems() {
-    if (_state.isLoadingMore) return;
-    if (!_state.allItems || _state.renderedCount >= _state.allItems.length) return;
-    var grid = document.getElementById('content-grid');
-    if (!grid) return;
-
-    _state.isLoadingMore = true;
-    if (_state.renderedCount > 0) Renderer.setLoadingMore(true);
-
-    setTimeout(function () {
-      var bs = _state.activeTab === 'live' ? 50 : 10;
-      var start = _state.renderedCount;
-      var end = Math.min(start + bs, _state.allItems.length);
-
-      if (start < end) {
-        Renderer.renderGrid(grid, _state.allItems.slice(start, end), {
-          onPlay: _playItem, onFavorite: _onFavoriteToggle
-        }, true);
-        _state.renderedCount = end;
-      }
-
-      _state.isLoadingMore = false;
-      Renderer.setLoadingMore(false);
-    }, 10);
   }
 
   function _onFavoriteToggle(item, isFav) {
@@ -689,6 +527,9 @@ var App = (function () {
 
   function _renderFavorites() {
     Renderer.setLoading(false);
+    /* Esconde a faixa CW — aqui o conteúdo é misturado, o badge de tipo já supre */
+    var cwRow = document.getElementById('continue-watching-row');
+    if (cwRow) cwRow.classList.add('hidden');
     var items = Storage.getFavoritesArray().map(function (f) {
       return {
         stream_id: f.type === 'live' ? f.id : null,
@@ -700,14 +541,29 @@ var App = (function () {
       };
     });
     document.getElementById('category-filter').innerHTML = '';
-    _renderGrid(items);
+    /* showTypeBadge: true — favoritos têm conteúdo misto, badge ajuda a distinguir */
+    _renderGrid(items, { onPlay: _playItem, onFavorite: _onFavoriteToggle, showTypeBadge: true });
   }
 
   function _renderWatchlist() {
     Renderer.setLoading(false);
+    /* Esconde a faixa "Continuar Assistindo" que viria da aba anterior */
+    var cwRow = document.getElementById('continue-watching-row');
+    if (cwRow) cwRow.classList.add('hidden');
+
     var items = Storage.getProgressArray();
     document.getElementById('category-filter').innerHTML = '';
-    _renderGrid(items);
+
+    _renderGrid(items, {
+      onPlay: _playItem,
+      onFavorite: _onFavoriteToggle,
+      showTypeBadge: true,
+      onRemove: function (targetItem) {
+        var id = String(targetItem._episodeId || targetItem.vod_id || targetItem.stream_id || targetItem.id || '');
+        Storage.removeProgress(id);
+        _renderWatchlist();
+      }
+    });
   }
 
   /* ══════════════════════════════════════
@@ -1057,6 +913,8 @@ var App = (function () {
         prog = Storage.getSeriesProgress(item.series_id || item.id);
       }
       playBtn.innerHTML = '&#9654;&nbsp;&nbsp;' + (prog ? 'Continuar Assistindo' : 'Assistir');
+      /* Salva referência ao item para que goBack() possa re-checar o progresso */
+      playBtn._detailItem = item;
     }
   }
 
@@ -1288,8 +1146,22 @@ var App = (function () {
       _showScreen(prev);
       if (prev === 'main') Navigation.focusFirst('main');
       else if (prev === 'detail') setTimeout(function () {
+        /* Atualiza o botão de play com o progresso atual (pode ter mudado no player) */
         var btn = document.getElementById('detail-play');
-        if (btn) btn.focus();
+        if (btn) {
+          /* Pega o item atual do botão para saber seu ID */
+          var curItem = btn._detailItem;
+          if (curItem) {
+            var itemType = curItem._type || curItem.type || 'movie';
+            var id = String(curItem.stream_id || curItem.vod_id || curItem.series_id || curItem.id || curItem._episodeId || '');
+            var prog = Storage.getProgress(id);
+            if (!prog && itemType === 'series' && (curItem.series_id || curItem.id)) {
+              prog = Storage.getSeriesProgress(curItem.series_id || curItem.id);
+            }
+            btn.innerHTML = '&#9654;&nbsp;&nbsp;' + (prog ? 'Continuar Assistindo' : 'Assistir');
+          }
+          btn.focus();
+        }
       }, 100);
     } else {
       _showScreen('main');

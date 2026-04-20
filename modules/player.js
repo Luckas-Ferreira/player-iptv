@@ -73,9 +73,25 @@ var Player = (function () {
 
     _bindControls();
 
+    var s = document.getElementById('screen-player');
+    var showEvt = function () { _showOverlay(); };
+
+    if (s) {
+      s.addEventListener('touchstart', showEvt, { passive: true });
+      s.addEventListener('mousemove', showEvt);
+    }
+    if (_video) {
+      _video.addEventListener('touchstart', showEvt, { passive: true });
+      _video.addEventListener('mousedown', showEvt);
+    }
+    if (_overlay) {
+      _overlay.addEventListener('touchstart', showEvt, { passive: true });
+      _overlay.addEventListener('mousemove', showEvt);
+    }
+
     document.addEventListener('keydown', function () {
-      var s = document.getElementById('screen-player');
-      if (s && !s.classList.contains('hidden')) _showOverlay();
+      var s2 = document.getElementById('screen-player');
+      if (s2 && !s2.classList.contains('hidden')) _showOverlay();
     });
   }
 

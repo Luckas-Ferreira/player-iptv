@@ -135,6 +135,15 @@ var Renderer = (function () {
       card.appendChild(el('div', { className: 'card-live-badge', textContent: 'AO VIVO' }));
     }
 
+    // Badge de tipo (FILME/SÉRIE) — só em contextos mistos (watchlist, favoritos)
+    if (!showImages && (type === 'movie' || type === 'series') && options && options.showTypeBadge) {
+      var typeBadge = el('div', {
+        className: 'card-live-badge card-type-badge card-type-' + type,
+        textContent: type === 'movie' ? 'FILME' : 'SÉRIE'
+      });
+      card.appendChild(typeBadge);
+    }
+
     // Favorito
     var favBtn = el('div', {
       className: 'card-fav' + (isFav ? ' is-fav' : ''),
@@ -198,6 +207,7 @@ var Renderer = (function () {
 
     card.addEventListener('click', function (e) {
       if (favBtn.contains(e.target)) return;
+      if (typeof removeBtn !== 'undefined' && removeBtn && removeBtn.contains(e.target)) return;
       if (ignorePlay) return;
       _clickHandled = true;
       /* Reseta a flag após um frame para não bloquear clicks futuros */
@@ -206,6 +216,8 @@ var Renderer = (function () {
     });
 
     card.addEventListener('keydown', function (e) {
+      if (favBtn.contains(e.target)) return;
+      if (typeof removeBtn !== 'undefined' && removeBtn && removeBtn.contains(e.target)) return;
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
         e.preventDefault();
         /* NÃO usa stopPropagation — navigation.js também precisa receber para chamar .click() em TVs antigas */
@@ -282,9 +294,9 @@ var Renderer = (function () {
     container.appendChild(frag);
   }
 
-  /* ─── DESTROY (compatibilidade com app.js) ──────────────── */
+  /* ─── DESTROY ───────────────────────────────────────── */
   function destroyVirtualScroll() {
-    // Sem virtual scroll — apenas limpa fila de imagens e desobserva
+    Pager.destroy();
     if (globalObserver) {
       var imgs = document.querySelectorAll('img[data-src]:not([data-loaded="1"])');
       for (var i = 0; i < imgs.length; i++) globalObserver.unobserve(imgs[i]);
@@ -293,6 +305,243 @@ var Renderer = (function () {
     imgLoading = 0;
     if (imgTimer) { clearTimeout(imgTimer); imgTimer = null; }
   }
+
+  /* ─── PAGER (Progressive Sentinel) ───────────────────────── */
+  /*
+   * Renderiza listas grandes de forma progressiva:
+   * - Apenas CHUNK itens no DOM inicialmente
+   * - IntersectionObserver (com fallback scroll) adiciona mais ao rolar
+   * - DOM_MAX limita nós no DOM; excedente é removido e compensado com spacer
+   */
+  var Pager = (function () {
+    var CHUNK    = 20;   /* itens por render */
+    var DOM_MAX  = 400;  /* máx cards no DOM ao mesmo tempo */
+    var MARGIN   = 500;  /* px antes do fim para carregar próximo chunk */
+
+    var _grid        = null;
+    var _items       = [];
+    var _opts        = {};
+    var _rStart      = 0;   /* índice do 1º item ainda no DOM */
+    var _rEnd        = 0;   /* índice após o último item no DOM */
+    var _busy        = false;
+    var _tok         = 0;
+    var _sentinel    = null;
+    var _spacer      = null;
+    var _spacerH     = 0;
+    var _observer    = null;
+    var _scrollEl    = null;
+    var _scrollFn    = null;
+
+    /* ---- API Pública ---------------------------------------- */
+    function init(grid, opts) {
+      destroy();
+      if (!grid) return;
+      _grid    = grid;
+      _opts    = opts || {};
+      _items   = [];
+      _rStart  = 0;
+      _rEnd    = 0;
+      _busy    = false;
+      _spacerH = 0;
+      _tok++;
+
+      /* Limpa o grid de forma compatível com TVs antigas */
+      while (_grid.firstChild) _grid.removeChild(_grid.firstChild);
+
+      /* Spacer topo — compensa cards removidos pelo trimDOM */
+      _spacer = document.createElement('div');
+      _spacer.className = 'pager-spacer';
+      _spacer.style.cssText = 'height:0;';
+      _grid.appendChild(_spacer);
+
+      /* Sentinel — div sináfora no final; acionado pelo IO ou scroll */
+      _sentinel = document.createElement('div');
+      _sentinel.className = 'pager-sentinel';
+      _grid.appendChild(_sentinel);
+
+      /* Container de scroll */
+      _scrollEl = _findScrollParent(_grid);
+
+      /* IO com fallback scroll */
+      if (typeof IntersectionObserver !== 'undefined') {
+        try {
+          _observer = new IntersectionObserver(function (entries) {
+            if (entries[0] && entries[0].isIntersecting) _scheduleChunk();
+          }, { root: _scrollEl || null, rootMargin: MARGIN + 'px 0px', threshold: 0 });
+          _observer.observe(_sentinel);
+        } catch (e) { _setupScrollFallback(); }
+      } else {
+        _setupScrollFallback();
+      }
+    }
+
+    /* Adiciona itens ao pool; dispara render se ainda não preencheu a tela */
+    function append(newItems) {
+      if (!_grid || !newItems || !newItems.length) return;
+      for (var i = 0; i < newItems.length; i++) _items.push(newItems[i]);
+      if (_rEnd < CHUNK * 2 && _items.length > _rEnd) _scheduleChunk();
+    }
+
+    function destroy() {
+      _tok++;
+      if (_observer) {
+        try { _observer.disconnect(); } catch (e) {}
+        _observer = null;
+      }
+      if (_scrollFn) {
+        var t = _scrollEl || (typeof window !== 'undefined' ? window : null);
+        if (t) try { t.removeEventListener('scroll', _scrollFn, false); } catch (e) {}
+        _scrollFn = null;
+      }
+      _grid     = null;
+      _items    = [];
+      _sentinel = null;
+      _spacer   = null;
+      _busy     = false;
+      _scrollEl = null;
+    }
+
+    /* ---- Internos ------------------------------------------ */
+    function _setupScrollFallback() {
+      var target = _scrollEl || (typeof window !== 'undefined' ? window : null);
+      if (!target) return;
+      _scrollFn = _throttle(function () {
+        var scrollTop, clientH, scrollH;
+        if (_scrollEl) {
+          scrollTop = _scrollEl.scrollTop;
+          clientH   = _scrollEl.clientHeight;
+          scrollH   = _scrollEl.scrollHeight;
+        } else {
+          var d = document.documentElement;
+          scrollTop = d.scrollTop || document.body.scrollTop || 0;
+          clientH   = window.innerHeight || d.clientHeight || 0;
+          scrollH   = d.scrollHeight   || document.body.scrollHeight || 0;
+        }
+        if ((scrollH - scrollTop - clientH) < MARGIN) _scheduleChunk();
+      }, 200);
+      target.addEventListener('scroll', _scrollFn, false);
+    }
+
+    function _scheduleChunk() {
+      if (_busy || !_grid) return;
+      if (_rEnd >= _items.length) return;
+      _busy = true;
+      var tok = _tok;
+      setTimeout(function () {
+        if (tok !== _tok || !_grid) { _busy = false; return; }
+        _renderNext();
+        _busy = false;
+        /* Verifica se o scrollEl ainda tem espaço livre (sem IO) */
+        if (!_observer && _rEnd < _items.length && _scrollEl) {
+          var dist = _scrollEl.scrollHeight - _scrollEl.scrollTop - _scrollEl.clientHeight;
+          if (dist < MARGIN) _scheduleChunk();
+        }
+      }, 0);
+    }
+
+    function _renderNext() {
+      if (!_grid || _rEnd >= _items.length) return;
+      var start = _rEnd;
+      var end   = Math.min(start + CHUNK, _items.length);
+
+      /* Remove sentinel temporariamente */
+      if (_sentinel && _sentinel.parentNode === _grid) _grid.removeChild(_sentinel);
+
+      /* Renderiza chunk via DocumentFragment */
+      var frag = document.createDocumentFragment();
+      for (var i = start; i < end; i++) {
+        frag.appendChild(createCard(_items[i], _opts));
+      }
+      _grid.appendChild(frag);
+      _rEnd = end;
+
+      /* Remove cards antigos se o DOM estiver muito grande */
+      _trimDOM();
+
+      /* Recoloca sentinel no final */
+      if (_sentinel) _grid.appendChild(_sentinel);
+    }
+
+    function _trimDOM() {
+      var inDom = _rEnd - _rStart;
+      if (inDom <= DOM_MAX) return;
+      var toRemove = inDom - DOM_MAX;
+
+      /* Lê altura do 1º card antes de remover */
+      var cardH = 80;
+      var gap   = 14;
+      var node  = _spacer ? _spacer.nextSibling : (_grid ? _grid.firstChild : null);
+      while (node && node !== _sentinel) {
+        if (node.nodeType === 1 && node.className &&
+            node.className.indexOf('card') !== -1 &&
+            node.className.indexOf('pager') === -1) {
+          try { cardH = node.offsetHeight || cardH; } catch(e) {}
+          break;
+        }
+        node = node.nextSibling;
+      }
+
+      /* Estima colunas */
+      var gridW    = 900;
+      try { gridW = (_grid.clientWidth || _grid.offsetWidth || 900) - 56; } catch(e) {}
+      var isCompact = _grid.className && _grid.className.indexOf('no-images') !== -1;
+      var minW     = isCompact ? 140 : 170;
+      var cols     = Math.max(1, Math.floor((gridW + gap) / (minW + gap)));
+      var rows     = Math.ceil(toRemove / cols);
+      var addH     = rows * (cardH + gap);
+
+      /* Remove cards do topo */
+      var cur = _spacer ? _spacer.nextSibling : (_grid ? _grid.firstChild : null);
+      var removed = 0;
+      var buf = [];
+      while (cur && removed < toRemove) {
+        var nxt = cur.nextSibling;
+        if (cur !== _sentinel && cur !== _spacer) { buf.push(cur); removed++; }
+        cur = nxt;
+      }
+      for (var d = 0; d < buf.length; d++) _grid.removeChild(buf[d]);
+      _rStart += removed;
+
+      /* Atualiza spacer */
+      _spacerH += addH;
+      if (_spacer) _spacer.style.height = _spacerH + 'px';
+    }
+
+    function _findScrollParent(el) {
+      var node = el ? el.parentNode : null;
+      while (node && node !== document.body && node !== document.documentElement) {
+        try {
+          var s = window.getComputedStyle ? window.getComputedStyle(node) :
+                  (node.currentStyle || {});
+          var ov = s.overflowY || s.overflow || '';
+          if (ov === 'auto' || ov === 'scroll') return node;
+        } catch (e) {}
+        node = node.parentNode;
+      }
+      return null;
+    }
+
+    function _throttle(fn, ms) {
+      var last = 0, timer = null;
+      return function () {
+        var now = (Date.now ? Date.now() : new Date().getTime());
+        var rem = ms - (now - last);
+        if (rem <= 0) {
+          last = now;
+          try { fn(); } catch(e) {}
+        } else if (!timer) {
+          timer = setTimeout(function () {
+            last = (Date.now ? Date.now() : new Date().getTime());
+            timer = null;
+            try { fn(); } catch(e) {}
+          }, rem);
+        }
+      };
+    }
+
+    return { init: init, append: append, destroy: destroy };
+  })();
+
 
   /* ─── CATEGORIAS ────────────────────────────────────────── */
   function renderCategoryFilter(container, categories, onSelect) {
@@ -442,7 +691,8 @@ var Renderer = (function () {
     setLoadingMore: setLoadingMore,
     el: el,
     lazyLoadImg: lazyLoadImg,
-    destroyVirtualScroll: destroyVirtualScroll
+    destroyVirtualScroll: destroyVirtualScroll,
+    Pager: Pager
   };
 
 })();

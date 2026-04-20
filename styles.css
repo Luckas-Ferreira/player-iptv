@@ -135,7 +135,7 @@ select {
   padding: 20px 32px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   margin-bottom: 8px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.02), transparent);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), transparent);
 }
 
 .cw-header {
@@ -152,22 +152,7 @@ select {
   letter-spacing: -0.5px;
 }
 
-.cw-see-all {
-  background: none;
-  border: 1px solid rgba(229, 9, 20, 0.4);
-  color: var(--accent, #e50914);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 10px;
-  border-radius: 20px;
-  transition: background 0.15s;
-}
 
-.cw-see-all:hover,
-.cw-see-all:focus {
-  background: rgba(229, 9, 20, 0.15);
-  outline: none;
-}
 
 /* Container horizontal com scroll */
 .cw-cards {
@@ -177,7 +162,8 @@ select {
   overflow-x: auto;
   overflow-y: visible;
   padding: 10px 4px 16px 4px;
-  margin: 0 -4px; /* Compensação para o padding lateral do card não cortar sombra */
+  margin: 0 -4px;
+  /* Compensação para o padding lateral do card não cortar sombra */
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -187,154 +173,47 @@ select {
 }
 
 /* ── Card individual ─────────────────────────────────────── */
-.cw-card {
-  flex: 0 0 auto;
-  width: 150px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg-raised, #1a1a1a);
-  cursor: pointer;
-  position: relative;
-  transition: transform 0.15s, box-shadow 0.15s, outline-color 0.1s;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  /* Garante que não cresce verticalmente */
-  display: flex;
-  flex-direction: column;
-}
-
-.cw-card:hover {
-  transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(229, 9, 20, 0.35);
-}
-
-.cw-card:focus {
-  outline-color: var(--accent, #e50914);
-  transform: scale(1.06);
-  box-shadow: 0 6px 20px rgba(229, 9, 20, 0.35);
-}
-
-/* Thumb — landscape 16:9 para todos */
-.cw-thumb-wrap {
-  width: 150px;
-  height: 84px;
-  /* 16:9 */
-  overflow: hidden;
-  position: relative;
-  flex-shrink: 0;
-  background: var(--bg-input, #111);
-}
-
-.cw-thumb {
-  width: 150px;
-  height: 84px;
-  object-fit: cover;
-  display: block;
-}
-
-/* Capa portrait (filme/série) — usa object-position top para mostrar rosto */
-.cw-thumb.portrait {
-  object-position: center top;
-}
-
-.cw-thumb-placeholder {
-  width: 150px;
-  height: 84px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  background: var(--bg-input, #111);
-}
-
-/* Badge */
-.cw-badge {
+.card-remove {
   position: absolute;
   top: 6px;
-  left: 6px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  pointer-events: none;
-}
-
-.cw-badge.live {
-  background: var(--accent, #e50914);
-}
-
-/* Botão remover */
-.cw-remove {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 20px;
-  height: 20px;
+  right: 6px;
+  width: 26px; /* Aumentado para toque */
+  height: 26px; /* Aumentado para toque */
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.6);
   color: #fff;
-  font-size: 14px;
-  border: none;
+  font-size: 18px; /* Aumentado */
+  border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  opacity: 0;
-  transition: opacity 0.15s;
+  opacity: 0.6; /* Tornar visível para toque */
+  transition: all 0.2s ease;
   padding: 0;
-  z-index: 2;
+  z-index: 10;
 }
 
-.cw-card:hover .cw-remove,
-.cw-card:focus .cw-remove {
+.card:hover .card-remove,
+.card:focus .card-remove,
+.card:active .card-remove {
   opacity: 1;
+  background: rgba(229, 9, 20, 0.9);
+  transform: scale(1.1);
 }
 
-/* Barra de progresso */
-.cw-progress-bar {
-  width: 100%;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.12);
+/* Overrides para cards dentro da fileira horizontal */
+.cw-cards .card {
   flex-shrink: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  /* Largura fixa garante que não estiquem no flex container */
+  width: var(--card-min, 160px);
 }
 
-.cw-progress-fill {
-  height: 100%;
-  background: var(--accent, #e50914);
-}
-
-/* Info */
-.cw-info {
-  padding: 7px 8px 8px;
-  flex: 1;
-}
-
-.cw-name {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-1);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cw-sub {
-  font-size: 10px;
-  color: var(--accent, #e50914);
-  font-weight: 700;
-  margin-top: 3px;
-}
-
-.cw-pct {
-  font-size: 10px;
-  color: var(--text-3, #888);
-  margin-top: 1px;
+.cw-cards .card.compact {
+  width: 280px;
 }
 
 /* ─── Telas ─────────────────────────────────────── */
@@ -1099,6 +978,13 @@ select {
   margin-bottom: 14px;
 }
 
+/* No-images fallback para flex (TVs sem suporte a CSS Grid) */
+.content-grid.no-images {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 @supports (display: grid) {
   .content-grid {
     display: grid;
@@ -1106,15 +992,45 @@ select {
     gap: 14px;
   }
 
+  /* No-images: 2 colunas largas; display:grid sobrescreve o flex fallback acima */
   .content-grid.no-images {
-     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
   }
 
-  .card {
+  .content-grid.no-images .card {
     width: auto;
     margin-right: 0;
     margin-bottom: 0;
   }
+}
+
+/* ─── Pager: spacer e sentinel ───────────────────────── */
+/* Devem ocupar linha inteira em flex E em grid */
+.pager-spacer,
+.pager-sentinel {
+  width: 100%;
+  /* flex fallback */
+  flex-basis: 100%;
+  flex-shrink: 0;
+  /* grid */
+  grid-column: 1 / -1;
+  /* Reset de margin que cards têm */
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.pager-spacer {
+  /* Altura controlada via JS; não colapsa */
+  min-height: 0;
+}
+
+.pager-sentinel {
+  height: 1px;
+  pointer-events: none;
+  /* Garante que o sentinel não crie espaço visual extra */
+  margin-top: -1px;
 }
 
 .card:hover {
@@ -1429,118 +1345,144 @@ select {
   opacity: 0.5;
 }
 
-/* ─── Compact Mode (No Images) ─────────────────── */
+/* ═══════════════════════════════════════════════════════
+   COMPACT MODE (sem imagens) — layout lista horizontal
+   ═══════════════════════════════════════════════════════ */
+
+/* Card compact base */
 .card.compact {
-  min-height: 70px;
+  min-height: 62px;
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 10px 14px;
-  gap: 12px;
+  padding: 0 14px 0 0;
+  gap: 0;
+  border-radius: 10px;
+  /* Sem padding-left pois a faixa colorida substituiu a imagem */
+}
+
+/* Faixa colorida à esquerda (substitui a thumbnail) */
+.card.compact::before {
+  content: '';
+  display: block;
+  width: 4px;
+  align-self: stretch;
+  background: var(--accent);
+  border-radius: 10px 0 0 10px;
+  flex-shrink: 0;
+  margin-right: 14px;
+}
+
+/* Badge AO VIVO — colado ao lado esquerdo da faixa */
+.card.compact .card-live-badge {
+  position: static;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  margin-right: 12px;
+  white-space: nowrap;
+}
+
+/* Cores específicas por tipo de conteúdo */
+.card.compact .card-type-badge {
+  opacity: 0.92;
+}
+
+.card.compact .card-type-movie {
+  background: #1565c0;
+  /* azul — filmes */
+}
+
+.card.compact .card-type-series {
+  background: #6a1b9a;
+  /* roxo — séries */
 }
 
 .card.compact .card-body {
-  padding: 0;
+  padding: 12px 0;
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
+  min-width: 0;
 }
 
 .card.compact .card-title {
-  font-size: 14px;
-  margin-bottom: 2px;
-  line-height: 1.3;
-  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
 }
 
 .card.compact .card-category {
-  font-size: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
+/* Estrela de favorito — à direita, sem pointer-events para não bloquear click do card */
 .card.compact .card-fav {
   position: static;
-  margin-left: 10px;
   flex-shrink: 0;
-  opacity: 1; /* Sempre visível no compact */
+  margin-left: 12px;
+  opacity: 0.55;
   background: transparent;
   border: none;
   width: auto;
   height: auto;
-  pointer-events: none; /* Evita captura acidental de cliques em TVs antigas */
+  font-size: 16px;
+  pointer-events: none;
+  transition: opacity 0.15s;
 }
 
-.card.compact .card-live-badge {
-  position: static;
-  margin-right: 4px;
-  padding: 4px 8px;
-  font-size: 10px;
-  font-weight: 800;
-  flex-shrink: 0;
-  border-radius: 4px;
-}
-
-.card.compact .card-progress {
-  height: 3px;
-}
-
-.card.compact::after {
-  display: none; /* Sem gradiente no compact */
-}
-
-/* ─── Compact Mode (Continue Watching) ────────── */
-.cw-card.compact {
-  width: 280px; /* Mais largo para o layout horizontal */
-  height: auto;
-  min-height: 75px;
-  flex-direction: row;
-  align-items: center;
-  padding: 0 12px;
-  gap: 10px;
-}
-
-.cw-card.compact .cw-badge {
-  position: static;
-  flex-shrink: 0;
-  padding: 3px 6px;
-  background: var(--accent);
-}
-
-.cw-card.compact .cw-info {
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.cw-card.compact .cw-name {
-  white-space: normal; /* Permite quebra */
-  font-size: 13px;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.cw-card.compact .cw-sub {
-  color: #ff4d4d; /* Mais brilhante para leitura em telas escuras */
-  font-weight: 800;
-  margin-top: 2px;
-}
-
-.cw-card.compact .cw-remove {
-  position: static;
+.card.compact:focus .card-fav,
+.card.compact:hover .card-fav {
   opacity: 1;
-  order: 10; /* Vai pro fim */
-  margin-left: auto;
-  background: transparent;
-  color: var(--text-4);
-  font-size: 22px;
 }
 
-.cw-card.compact .cw-progress-bar {
+.card.compact .card-fav.is-fav {
+  opacity: 1;
+  color: #f5c518;
+}
+
+/* Barra de progresso no compact */
+.card.compact .card-progress {
+  height: 2px;
   position: absolute;
   bottom: 0;
-  left: 0;
+  left: 4px;
+  /* alinha após a faixa colorida */
+  right: 0;
+  border-radius: 0 0 10px 0;
+}
+
+/* Sem gradiente no compact */
+.card.compact::after {
+  display: none;
+}
+
+/* Estado foco/hover melhorado para navegação por TV */
+.card.compact:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.35), inset 0 0 0 1px rgba(229, 9, 20, 0.2);
+  outline: none;
+}
+
+.card.compact:focus::before,
+.card.compact:hover::before {
+  width: 5px;
+  background: var(--accent-hover, #ff1a1a);
 }
 
 /* Spinner */
@@ -1571,6 +1513,7 @@ select {
    ════════════════════════════════════════════════════ */
 .settings-container {
   max-width: 640px;
+  padding: 20px 28px 48px;
 }
 
 .settings-section-title {
