@@ -11,7 +11,7 @@
 var App = (function () {
   'use strict';
 
-  var MAXITEMS = 800;
+  var MAXITEMS = 100;
 
   var _state = {
     mode: 'xtream',
@@ -379,8 +379,12 @@ var App = (function () {
       }
 
       var limit = search ? 15000 : MAXITEMS;
+      if (fullItems.length >= limit) return;
+      if (fullItems.length + validItems.length > limit) {
+        validItems = validItems.slice(0, limit - fullItems.length);
+      }
+
       fullItems = fullItems.concat(validItems);
-      if (fullItems.length > limit) fullItems = fullItems.slice(0, limit);
       if (validItems.length === 0) return;
 
       if (!firstChunkReceived) {
@@ -390,7 +394,6 @@ var App = (function () {
       }
 
       _state.allItems = _state.allItems.concat(validItems);
-      if (_state.allItems.length > limit) _state.allItems = _state.allItems.slice(0, limit);
 
       /* Entrega ao pager — ele decide quando renderizar */
       Renderer.Pager.append(validItems);
@@ -400,7 +403,7 @@ var App = (function () {
 
       if (fullItems.length === 0 && allItems && allItems.length) {
         /* Sem streaming — recebeu tudo de uma vez */
-        var q   = search ? search.toLowerCase() : '';
+        var q = search ? search.toLowerCase() : '';
         var lim = search ? 15000 : MAXITEMS;
         for (var i = 0; i < allItems.length; i++) {
           var it = allItems[i];

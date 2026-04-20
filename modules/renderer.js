@@ -16,10 +16,10 @@ var Renderer = (function () {
   'use strict';
 
   /* ─── CONFIGURAÇÃO ──────────────────────────────────────── */
-  var IMGMAX = 2;          /* 2 simultâneas — evita bloqueio se 1 travar */
+  var IMGMAX = 4;          /* 4 simultâneas — rápido o suficiente, não trava */
   var IMG_DELAY = 100;     /* ms entre tentativas de processar fila */
   var IMG_TIMEOUT = 10000; /* 10s timeout por imagem */
-  var IMG_RETRY_DELAY = 2000; /* ms antes de tentar retry */
+  var IMG_RETRY_DELAY = 800; /* ms mais curto antes do retry proxy */
 
   /* ─── FILA DE IMAGENS ───────────────────────────────────── */
   var imgQueue = [];
@@ -70,22 +70,38 @@ var Renderer = (function () {
   }
 
   function loadImg(imgEl, src, retryCount) {
+    if (!src) { _replaceWithPlaceholder(imgEl); return; }
+
     var _imgId = ++imgIdCounter;
     var _done = false;
+    var actualSrc = src.trim();
+
+    if (retryCount >= 1) {
+      /* Mesmo em formato JPG (ex: capas do TMDB), TVs antigas falham instantaneamente
+         porque não suportam o certificado de segurança moderno (TLS 1.2/1.3) dos servidores.
+         Usamos http://wsrv.nl para contornar protocolos HTTPS estritos que a TV não entende. */
+      actualSrc = 'http://wsrv.nl/?url=' + encodeURIComponent(actualSrc);
+    }
+
+    /* Em TVs antigas usar novo Image() em memória funciona melhor para 
+       prevenir erros de renderização dupla e loops infinitos */
+    var _tmp = new Image();
 
     function finish(success) {
       if (_done) return;
       _done = true;
       /* Limpa timeout */
       if (imgTimeouts[_imgId]) { clearTimeout(imgTimeouts[_imgId]); delete imgTimeouts[_imgId]; }
-      imgEl.onload = imgEl.onerror = null;
+      
+      _tmp.onload = _tmp.onerror = null;
       imgLoading = Math.max(0, imgLoading - 1);
 
-      if (success) {
+      if (success && imgEl && imgEl.parentNode) {
+        imgEl.src = actualSrc;
         imgEl.setAttribute('data-loaded', '1');
         imgEl.style.display = '';
-      } else if (retryCount < 1 && imgEl.parentNode) {
-        /* Retry 1x após delay — rede instável de TV antiga */
+      } else if (retryCount < 1 && imgEl && imgEl.parentNode) {
+        /* Retry usando o proxy após pequeno delay */
         setTimeout(function () {
           if (!imgEl.parentNode) return;
           imgQueue.push({ el: imgEl, src: src, retry: retryCount + 1 });
@@ -98,18 +114,17 @@ var Renderer = (function () {
       scheduleProcess();
     }
 
-    imgEl.onload = function () { finish(true); };
-    imgEl.onerror = function () { finish(false); };
+    _tmp.onload = function () { finish(true); };
+    _tmp.onerror = function () { finish(false); };
 
     /* Timeout de segurança — evita 1 imagem travar toda a fila */
     imgTimeouts[_imgId] = setTimeout(function () {
       if (_done) return;
-      /* Aborta o carregamento pendente */
-      try { imgEl.src = ''; } catch (e) {}
+      try { _tmp.src = ''; } catch (e) {}
       finish(false);
     }, IMG_TIMEOUT);
 
-    imgEl.src = src;
+    _tmp.src = actualSrc;
   }
 
   /**
