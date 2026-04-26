@@ -44,11 +44,11 @@
   --card-min: 188px;
   --card-portrait-min: 160px;
 
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.6);
-  --shadow-focus: 0 0 0 3px rgba(229, 9, 20, 0.7);
-  --shadow-float: 0 20px 60px rgba(0, 0, 0, 0.8);
+  --shadow-card: none;
+  --shadow-focus: 0 0 0 3px var(--accent);
+  --shadow-float: none;
 
-  --trans: 0.18s ease;
+  --trans: 0.1s linear;
 }
 
 /* ─── Reset ─────────────────────────────────────── */
@@ -135,7 +135,7 @@ select {
   padding: 20px 32px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   margin-bottom: 8px;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), transparent);
+  background: var(--bg-surface);
 }
 
 .cw-header {
@@ -312,8 +312,8 @@ select {
   border: 1px solid var(--border-low);
   border-radius: 28px;
   padding: 48px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(10px);
+  box-shadow: none;
+  border: 2px solid var(--border-mid);
 }
 
 /* Logo */
@@ -336,7 +336,7 @@ select {
   margin-bottom: 24px;
   margin-left: 10px;
   position: relative;
-  box-shadow: 0 8px 16px rgba(229, 9, 20, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .logo-icon svg {
@@ -596,12 +596,11 @@ select {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .btn-toggle:focus {
   outline: none;
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border: 3px solid var(--accent);
 }
 
 .btn-icon {
@@ -766,7 +765,6 @@ select {
   background: #22c55e;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
 }
 
 .user-name {
@@ -831,13 +829,12 @@ select {
   border: 1px solid var(--border-low);
   border-radius: var(--radius-sm);
   padding: 2px 4px 2px 14px;
-  transition: border-color var(--trans), box-shadow var(--trans);
+  transition: border-color var(--trans);
   max-width: 360px;
 }
 
 .search-input-wrapper:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 #header-search-input {
@@ -887,7 +884,6 @@ select {
   letter-spacing: -0.02em;
   color: #fff;
   line-height: 1.1;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Novo container de rolagem independente — Melhor compatibilidade com TVs antigas */
@@ -938,20 +934,17 @@ select {
   background: var(--bg-surface);
   color: #fff;
   border-color: var(--accent);
-  transform: translateY(-1.5px);
   outline: none;
-  box-shadow: 0 0 12px var(--accent-glow), 0 0 0 2px var(--accent);
 }
 
 .cat-btn.active {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
-  box-shadow: 0 4px 15px var(--accent-glow);
 }
 
 .cat-btn:focus {
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-color: var(--accent);
 }
 
 /* ─── Grade de Cards ─────────────────────────────── */
@@ -972,7 +965,7 @@ select {
   overflow: hidden;
   cursor: pointer;
   position: relative;
-  transition: transform 0.2s ease, border-color 0.18s ease, box-shadow 0.2s ease;
+  transition: border-color var(--trans);
   /* Fallback margem para WebKit muuuito antigo que ignora flex gap */
   margin-right: 14px;
   margin-bottom: 14px;
@@ -1034,17 +1027,13 @@ select {
 }
 
 .card:hover {
-  transform: scale(1.04);
   border-color: rgba(229, 9, 20, 0.5);
-  box-shadow: 0 0 0 1px rgba(229, 9, 20, 0.25), 0 12px 40px rgba(0, 0, 0, 0.7);
   z-index: 2;
 }
 
 .card:focus {
   outline: none;
-  transform: scale(1.04);
   border-color: var(--accent);
-  box-shadow: var(--shadow-focus), 0 12px 40px rgba(0, 0, 0, 0.7);
   z-index: 2;
 }
 
@@ -1059,11 +1048,9 @@ select {
   min-height: 90px;
 }
 
-/* Loading shimmer enquanto imagem carrega */
+/* Loading background enquanto imagem carrega */
 .card-thumb:not([data-loaded="1"]) {
-  background: linear-gradient(90deg, var(--bg-raised) 25%, var(--bg-surface) 50%, var(--bg-raised) 75%);
-  background-size: 200% 100%;
-  animation: imgShimmer 1.5s ease-in-out infinite;
+  background: var(--bg-raised);
 }
 
 @keyframes imgShimmer {
@@ -1085,7 +1072,6 @@ select {
 .card-progress-fill {
   height: 100%;
   background: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
   width: 0%;
 }
 
@@ -1109,7 +1095,6 @@ select {
   z-index: 50;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(4px);
 }
 
 .media-card:hover .card-remove,
@@ -1135,7 +1120,6 @@ select {
   font-weight: 700;
   margin-bottom: 20px;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .hero-grid {
@@ -1493,7 +1477,7 @@ select {
 /* Estado foco/hover melhorado para navegação por TV */
 .card.compact:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.35), inset 0 0 0 1px rgba(229, 9, 20, 0.2);
+  border-width: 2px;
   outline: none;
 }
 
@@ -1644,7 +1628,7 @@ select {
   height: 100%;
   background-size: cover;
   background-position: center 20%;
-  filter: blur(48px) brightness(0.25) saturate(0.6);
+  opacity: 0.1;
   transform: scale(1.12);
   pointer-events: none;
   z-index: 0;
@@ -1707,7 +1691,6 @@ select {
   min-width: 200px;
   border-radius: var(--radius);
   object-fit: cover;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.9);
   background: var(--bg-surface);
 }
 
@@ -1984,7 +1967,6 @@ select {
 .player-btn-back:focus {
   background: rgba(0, 0, 0, 0.7);
   outline: none;
-  box-shadow: var(--shadow-focus);
 }
 
 .player-channel-info {
@@ -2065,8 +2047,7 @@ select {
   bottom: 120px;
   right: 40px;
   width: 320px;
-  background: rgba(18, 18, 18, 0.92);
-  backdrop-filter: blur(20px);
+  background: rgba(18, 18, 18, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 20px;
   padding: 24px;

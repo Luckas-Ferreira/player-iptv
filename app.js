@@ -179,6 +179,18 @@ var App = (function () {
     }
   }
 
+  function _handleManualRefresh() {
+    if (API && API.clearCache) {
+      API.clearCache();
+      Renderer.showToast('Limpando cache e atualizando listas...', 'info');
+      
+      // Pequeno delay para garantir que o cache limpou antes de recarregar
+      setTimeout(function() {
+        _activateTab(_state.activeTab);
+      }, 300);
+    }
+  }
+
   function _activateTab(tabName) {
 
     Renderer.destroyVirtualScroll();
@@ -202,7 +214,8 @@ var App = (function () {
     if (grid) grid.innerHTML = '';
     if (catFilter) catFilter.innerHTML = '';
 
-    if (API && API.clearCache) API.clearCache();
+    // Removido API.clearCache() daqui para permitir cache entre abas.
+    // O cache agora é limpo apenas pelo botão "Atualizar Lista".
 
     var header = document.querySelector('.content-header');
     var stpanel = document.getElementById('tab-settings');
@@ -967,6 +980,11 @@ var App = (function () {
       Storage.clearAll(); API.clearCache();
       Renderer.showToast('Todos os dados removidos', 'info');
     });
+
+    var sr = document.getElementById('settings-refresh');
+    if (sr) {
+      sr.addEventListener('click', _handleManualRefresh);
+    }
   }
 
   function _applySettings() {
