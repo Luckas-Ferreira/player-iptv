@@ -243,7 +243,9 @@ var Renderer = (function () {
       var removeBtn = el('div', {
         className: 'card-remove',
         innerHTML: '&times;',
-        title: 'Remover da fileira'
+        title: 'Remover da fileira',
+        tabIndex: 0,
+        'aria-label': 'Remover ' + name
       });
       removeBtn.addEventListener('click', function (e) {
         e.stopPropagation(); e.preventDefault();

@@ -111,8 +111,8 @@ var Navigation = (function () {
     if (inCW) {
       if (direction === 'left') return ['.cw-cards'];                              /* scroll horizontal */
       if (direction === 'right') return ['.cw-cards'];                              /* scroll horizontal */
-      if (direction === 'up') return ['.category-filter', '.content-header', '.sidebar'];
-      if (direction === 'down') return ['.content-grid', '.content-empty'];
+      if (direction === 'up') return ['.cw-cards', '.category-filter', '.content-header', '.sidebar'];
+      if (direction === 'down') return ['.cw-cards', '.content-grid', '.content-empty'];
     }
 
     /* ── Sidebar ── */
