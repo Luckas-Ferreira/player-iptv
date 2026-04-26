@@ -811,7 +811,8 @@ var App = (function () {
               _type: 'series',
               _episodeId: seriesProg.id,
               _episodeExt: seriesProg.episodeExt || 'mkv',
-              name: seriesProg.name
+              name: seriesProg.name,
+              _resumeTime: seriesProg.time || 0
             }));
           };
         } else if (info.episodes[snums[0]] && info.episodes[snums[0]][0]) {
@@ -821,7 +822,8 @@ var App = (function () {
               _type: 'series',
               _episodeId: ep0.id || ep0.stream_id,
               _episodeExt: ep0.container_extension || 'mkv',
-              name: series.name + ' – S1 E' + (ep0.episode_num || 1)
+              name: series.name + ' – S1 E' + (ep0.episode_num || 1),
+              _resumeTime: 0
             }));
           };
         }
@@ -877,7 +879,8 @@ var App = (function () {
         _type: 'series',
         _episodeId: ep.id || ep.stream_id,
         _episodeExt: ep.container_extension || 'mkv',
-        name: series.name + ' – ' + titleEl.textContent
+        name: series.name + ' – ' + titleEl.textContent,
+        _resumeTime: 0
       }));
     });
     card.addEventListener('keydown', function (e) { if (e.keyCode === 13) { e.preventDefault(); card.click(); } });
