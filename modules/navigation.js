@@ -101,46 +101,46 @@ var Navigation = (function () {
     if (!focused) return null;
 
     var inCW = focused.closest && focused.closest('.cw-cards');
-    var inSidebar = focused.closest && focused.closest('.sidebar');
-    var inCategory = focused.closest && focused.closest('.category-filter');
+    var inTopbar = focused.closest && focused.closest('.topbar');
+    var inCategory = focused.closest && focused.closest('.category-sidebar');
     var inGrid = focused.closest && focused.closest('.content-grid');
     var inSettings = focused.closest && focused.closest('.settings-container');
     var inEpisodes = focused.closest && focused.closest('.episodes-panel');
 
     /* ── Faixa Continuar Assistindo ── */
     if (inCW) {
-      if (direction === 'left') return ['.cw-cards'];                              /* scroll horizontal */
-      if (direction === 'right') return ['.cw-cards'];                              /* scroll horizontal */
-      if (direction === 'up') return ['.cw-cards', '.category-filter', '.content-header', '.sidebar'];
+      if (direction === 'left') return ['.cw-cards', '.category-sidebar'];
+      if (direction === 'right') return ['.cw-cards'];
+      if (direction === 'up') return ['.topbar'];
       if (direction === 'down') return ['.cw-cards', '.content-grid', '.content-empty'];
     }
 
-    /* ── Sidebar ── */
-    if (inSidebar) {
-      if (direction === 'right') return ['.main-content'];
-      if (direction === 'left') return [];                   /* borda esquerda — não sai */
-      if (direction === 'up' || direction === 'down') return ['.sidebar'];
+    /* ── Topbar (Antiga Sidebar) ── */
+    if (inTopbar) {
+      if (direction === 'left' || direction === 'right') return ['.topbar'];
+      if (direction === 'down') return ['.category-sidebar', '.cw-cards', '.content-grid', '.settings-container'];
+      if (direction === 'up') return ['.topbar'];
     }
 
-    /* ── Category filter ── */
+    /* ── Category Sidebar ── */
     if (inCategory) {
-      if (direction === 'left') return ['.category-filter', '.sidebar'];
-      if (direction === 'right') return ['.category-filter'];
-      if (direction === 'down') return ['.cw-cards', '.content-grid', '.content-empty']; /* desce para faixa CW primeiro */
-      if (direction === 'up') return ['.content-header', '.sidebar'];
+      if (direction === 'up' || direction === 'down') return ['.category-sidebar', '.topbar'];
+      if (direction === 'right') return ['.cw-cards', '.content-grid', '.content-empty', '.content-header'];
+      if (direction === 'left') return ['.category-sidebar'];
     }
 
     /* ── Grid principal ── */
     if (inGrid) {
-      if (direction === 'left') return ['.content-grid', '.sidebar'];
+      if (direction === 'left') return ['.content-grid', '.category-sidebar'];
       if (direction === 'right') return ['.content-grid'];
-      if (direction === 'up') return ['.content-grid', '.cw-cards', '.category-filter', '.content-header']; /* sobe para faixa CW */
+      if (direction === 'up') return ['.content-grid', '.cw-cards', '.topbar', '.content-header'];
       /* sem constraint para baixo — scroll livre */
     }
 
     /* ── Settings ── */
     if (inSettings) {
-      return ['.settings-container', '.sidebar'];
+      if (direction === 'up') return ['.settings-container', '.topbar'];
+      return ['.settings-container'];
     }
 
     /* ── Painel de episódios ── */

@@ -967,16 +967,7 @@ var App = (function () {
   ══════════════════════════════════════ */
   function _bindSettingsEvents() {
     var cf = document.getElementById('clear-favorites'), cr = document.getElementById('clear-recents');
-    var ca = document.getElementById('clear-all'), ti = document.getElementById('toggle-images');
-    if (ti) ti.addEventListener('click', function () {
-      var s = Storage.getSettings();
-      var newVal = !s.showImages;
-      Storage.setSetting('showImages', newVal);
-      _updateSettingsDisplay();
-      _applySettings();
-      // Força recarregamento da aba atual para aplicar na grade
-      _loadCurrentTab();
-    });
+    var ca = document.getElementById('clear-all');
     if (cf) cf.addEventListener('click', function () { Storage.clearFavorites(); Renderer.showToast('Favoritos removidos', 'info'); });
     if (cr) cr.addEventListener('click', function () { Storage.clearRecents(); Renderer.showToast('Histórico limpo', 'info'); });
     if (ca) ca.addEventListener('click', function () {
@@ -991,22 +982,10 @@ var App = (function () {
   }
 
   function _applySettings() {
-    var s = Storage.getSettings();
-
-    var grid = document.getElementById('content-grid');
-    if (grid) {
-      if (s.showImages === false) grid.classList.add('no-images');
-      else grid.classList.remove('no-images');
-    }
   }
 
   function _updateSettingsDisplay() {
     var s = Storage.getSettings();
-    var ti = document.getElementById('toggle-images');
-    if (ti) {
-      ti.textContent = s.showImages ? 'Ativado' : 'Desativado';
-      ti.className = 'btn-toggle ' + (s.showImages ? 'active' : '');
-    }
     var a = document.getElementById('settings-account');
     if (a) {
       var c = Auth.getCredentials();

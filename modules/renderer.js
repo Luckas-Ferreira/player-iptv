@@ -179,7 +179,7 @@ var Renderer = (function () {
     var isPortrait = (type === 'movie' || type === 'series');
     var isFav = (typeof Storage !== 'undefined') ? Storage.isFavorite(id) : false;
 
-    var showImages = (typeof Storage !== 'undefined') ? Storage.getSettings().showImages : true;
+    var showImages = true;
 
     var card = el('div', {
       className: 'card' + (!showImages ? ' compact' : ''),
