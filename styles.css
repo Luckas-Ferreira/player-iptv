@@ -692,10 +692,9 @@ select {
 }
 
 .menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 24px;
+  display: inline-block;
+  padding: 10px 22px;
+  border: 3px solid transparent;
   border-radius: 100px;
   font-size: 15px;
   font-weight: 600;
@@ -703,6 +702,8 @@ select {
   cursor: pointer;
   transition: all var(--trans);
   white-space: nowrap;
+  vertical-align: middle;
+  line-height: normal;
 }
 
 .menu-item:hover {
@@ -717,12 +718,13 @@ select {
 
 .menu-item:focus {
   outline: none;
-  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
+  border-color: var(--accent);
   background: var(--bg-surface);
   color: var(--text-1);
 }
 
 .menu-item.active:focus {
+  border-color: var(--accent);
   background: var(--accent);
   color: #fff;
 }
@@ -936,20 +938,25 @@ select {
 .category-filter {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   padding: 0 20px 32px;
 }
+.category-filter > * { margin-bottom: 4px; }
+.category-filter > *:last-child { margin-bottom: 0; }
 
 .cat-btn {
-  padding: 12px 16px;
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
   background: transparent;
-  border: none;
+  border: 3px solid transparent;
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-3);
   text-align: left;
   transition: all var(--trans);
+  line-height: normal;
+  margin-bottom: 4px;
 }
 
 .cat-btn:hover {
@@ -958,20 +965,21 @@ select {
 }
 
 .cat-btn.active {
-  background: var(--accent-dim);
+  background: rgba(229, 9, 20, 0.2);
   color: var(--accent);
   font-weight: 700;
 }
 
 .cat-btn:focus {
   outline: none;
-  box-shadow: inset 0 0 0 2px var(--accent);
+  border-color: var(--accent);
   background: var(--bg-surface);
   color: var(--text-1);
 }
 
 .cat-btn.active:focus {
-  background: var(--accent-dim);
+  background: rgba(229, 9, 20, 0.2);
+  border-color: var(--accent);
 }
 
 /* ─── Grade de Cards ─────────────────────────────── */
