@@ -45,7 +45,7 @@
   --card-portrait-min: 160px;
 
   --shadow-card: none;
-  --shadow-focus: 0 0 0 3px var(--accent);
+  --shadow-focus: inset 0 0 0 3px var(--accent);
   --shadow-float: none;
 
   --trans: 0.1s linear;
@@ -219,7 +219,7 @@ select {
 /* Overrides para cards dentro da fileira horizontal */
 .cw-cards .card {
   flex-shrink: 0;
-  margin-right: 0;
+  margin-right: 16px;
   margin-bottom: 0;
   /* Largura fixa garante que não estiquem no flex container */
   width: var(--card-min, 160px);
@@ -412,7 +412,7 @@ select {
 }
 
 .tab-btn:focus-visible {
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
   border-radius: var(--radius-xs);
 }
 
@@ -488,7 +488,6 @@ select {
 .login-actions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   margin-top: 4px;
 }
 
@@ -514,7 +513,7 @@ select {
 
 .btn-primary:focus {
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .btn-primary:active {
@@ -545,7 +544,7 @@ select {
 }
 
 .btn-secondary:focus {
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .btn-outline {
@@ -566,7 +565,7 @@ select {
 .btn-outline:focus {
   background: rgba(255, 255, 255, 0.10);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .btn-large {
@@ -590,7 +589,7 @@ select {
 .btn-danger-sm:focus {
   background: rgba(229, 9, 20, 0.28);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .btn-toggle {
@@ -687,7 +686,6 @@ select {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 8px 0;
@@ -719,7 +717,7 @@ select {
 
 .menu-item:focus {
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
   background: var(--bg-surface);
   color: var(--text-1);
 }
@@ -1061,9 +1059,11 @@ select {
 }
 
 .card:focus {
-  outline: none;
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
   border-color: var(--accent);
   z-index: 2;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 /* Thumb de imagem */
@@ -1273,7 +1273,7 @@ select {
 
 .card-fav:focus {
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
   opacity: 1;
 }
 
@@ -1553,7 +1553,7 @@ select {
 .settings-item:focus {
   outline: none;
   border-color: var(--border-low);
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .settings-item-info {
@@ -1597,7 +1597,7 @@ select {
   border-color: var(--border-mid);
   background: rgba(255, 255, 255, 0.08);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .ctrl-display {
@@ -1674,7 +1674,7 @@ select {
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-1);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .detail-info {
@@ -1819,7 +1819,7 @@ select {
   border-color: var(--border-mid);
   color: var(--text-1);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .episodes-grid {
@@ -1864,7 +1864,7 @@ select {
   border-color: var(--border-low);
   background: var(--bg-raised);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 .episode-thumb {
@@ -2197,7 +2197,7 @@ select {
 .player-ctrl-btn:focus {
   background: rgba(255, 255, 255, 0.12);
   outline: none;
-  box-shadow: var(--shadow-focus);
+  outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 3px var(--accent);
 }
 
 /* Loading / Error do player */
@@ -2383,3 +2383,15 @@ select {
    Ao pressionar Voltar em um canal ao vivo, a tela se
    divide: canais à esquerda, preview do player à direita.
    ════════════════════════════════════════════════════ */
+
+/* Fallback for gap in .topbar-menu */
+.topbar-menu > * { margin-right: 12px; }
+.topbar-menu > *:last-child { margin-right: 0; }
+
+.login-actions > * { margin-bottom: 10px; }
+.login-actions > *:last-child { margin-bottom: 0; }
+
+/* Fix box-sizing and focus ring bugs on old TVs */
+button, input, select, .card, .menu-item, .tab-btn, .cat-btn, .settings-item, .episode-card {
+  box-sizing: border-box !important;
+}
