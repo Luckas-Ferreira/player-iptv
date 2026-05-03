@@ -225,14 +225,14 @@ var App = (function () {
     var empty = document.getElementById('content-empty');
 
     if (searchBar) {
-      if (tabName === 'movies' || tabName === 'series' || tabName === 'live') searchBar.classList.remove('hidden');
+      if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
       else searchBar.classList.add('hidden');
     }
 
-    /* Mostra/esconde o botão de busca na topbar */
+    /* Mostra/esconde o botão de busca na topbar — só em Filmes e Séries */
     var topbarSearchBtn = document.getElementById('topbar-search-btn');
     if (topbarSearchBtn) {
-      if (tabName === 'movies' || tabName === 'series' || tabName === 'live') {
+      if (tabName === 'movies' || tabName === 'series') {
         topbarSearchBtn.classList.add('visible');
       } else {
         topbarSearchBtn.classList.remove('visible');
