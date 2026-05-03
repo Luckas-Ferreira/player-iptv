@@ -633,13 +633,13 @@ var Renderer = (function () {
   function renderCategoryFilter(container, categories, onSelect) {
     container.innerHTML = '';
     var frag = document.createDocumentFragment();
-    var allBtn = el('button', { className: 'cat-btn active', textContent: 'Todos', tabIndex: 0 });
+    var allBtn = el('div', { className: 'cat-btn active', textContent: 'Todos', tabIndex: 0, role: 'button' });
     allBtn.dataset.catId = '';
     frag.appendChild(allBtn);
     for (var i = 0; i < categories.length; i++) {
       var cat = categories[i];
       var cleanName = (cat.categoryname || '').replace(/[^\x20-\x7E\u00C0-\u024F]/g, '').trim();
-      var btn = el('button', { className: 'cat-btn', textContent: cleanName, tabIndex: 0 });
+      var btn = el('div', { className: 'cat-btn', textContent: cleanName, tabIndex: 0, role: 'button' });
       btn.dataset.catId = cat.categoryid;
       frag.appendChild(btn);
     }
