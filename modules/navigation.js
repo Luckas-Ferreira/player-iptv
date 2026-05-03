@@ -82,7 +82,7 @@ var Navigation = (function () {
     if (_matchKey(code, KEYS.RIGHT)) { e.preventDefault(); _moveFocus('right'); return; }
 
     if (_matchKey(code, KEYS.OK)) {
-      if (focused && (focused.tagName === 'DIV' || focused.tagName === 'LI')) {
+      if (focused && (focused.tagName === 'DIV' || focused.tagName === 'LI' || focused.tagName === 'BUTTON')) {
         e.preventDefault();
         focused.click();
       }

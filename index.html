@@ -255,36 +255,42 @@
     <div class="detail-backdrop" id="detail-backdrop"></div>
     <div class="detail-overlay"></div>
     <div class="detail-content">
+      <!-- Botão Voltar -->
       <button id="detail-back" class="detail-back-btn" tabindex="0" aria-label="Voltar">&#8592; Voltar</button>
-      <div class="detail-info">
+
+      <!-- Hero: poster + metadados sobre o backdrop -->
+      <div class="detail-hero">
         <img id="detail-cover" class="detail-cover" src="" alt="" loading="lazy">
         <div class="detail-meta">
           <h2 id="detail-title" class="detail-title"></h2>
           <div id="detail-badges" class="detail-badges"></div>
           <div id="detail-extra-info" class="detail-extra-info">
-            <p id="detail-director-row" class="detail-extra-item hidden"><strong>Diretor:</strong> <span
-                id="detail-director"></span></p>
-            <p id="detail-cast-row" class="detail-extra-item hidden"><strong>Elenco:</strong> <span
-                id="detail-cast"></span></p>
+            <p id="detail-director-row" class="detail-extra-item hidden"><strong>Diretor:</strong> <span id="detail-director"></span></p>
+            <p id="detail-cast-row" class="detail-extra-item hidden"><strong>Elenco:</strong> <span id="detail-cast"></span></p>
           </div>
           <p id="detail-plot" class="detail-plot"></p>
           <div class="detail-actions">
-            <button id="detail-play" class="btn-primary btn-large" tabindex="0">
-              &#9654; &nbsp;Assistir
+            <button id="detail-play" class="btn-primary" tabindex="0">
+              &#9654;&nbsp; Assistir
             </button>
-            <button id="detail-favorite" class="btn-outline btn-large" tabindex="0">
+            <button id="detail-favorite" class="btn-outline" tabindex="0">
               <span id="detail-fav-icon">&#9734;</span>&nbsp; Favoritar
             </button>
           </div>
         </div>
       </div>
-      <!-- Episódios de séries -->
-      <div id="series-episodes-panel" class="episodes-panel hidden">
-        <div class="seasons-row" id="seasons-row" role="tablist" aria-label="Temporadas"></div>
-        <div id="episodes-grid" class="episodes-grid" role="list" aria-label="Episódios"></div>
+
+      <!-- Body: episódios de séries -->
+      <div class="detail-body">
+        <div id="series-episodes-panel" class="episodes-panel hidden">
+          <div class="seasons-row" id="seasons-row" role="tablist" aria-label="Temporadas"></div>
+          <div id="episodes-grid" class="episodes-grid" role="list" aria-label="Episódios"></div>
+        </div>
       </div>
-    </div>
-  </div>
+
+    </div><!-- fim detail-content -->
+  </div><!-- fim screen-detail -->
+
 
   <!-- ===================== TELA: PLAYER ===================== -->
   <div id="screen-player" class="screen hidden" role="main" aria-label="Player">
