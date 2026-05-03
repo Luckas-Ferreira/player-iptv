@@ -796,6 +796,43 @@ select {
   outline: none;
 }
 
+/* ─── Botão de Busca na Topbar ─────────────────── */
+.topbar-search-btn {
+  display: none;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  border: 2px solid transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topbar-search-btn.visible {
+  display: inline-block;
+}
+
+.topbar-search-label {
+  font-size: 13px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.topbar-search-btn svg {
+  vertical-align: middle;
+}
+
+.topbar-search-btn:hover,
+.topbar-search-btn:focus {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  outline: none;
+}
+
 /* ─── Wrapper de Corpo ──────────────────────────── */
 .main-body-wrapper {
   display: flex;
@@ -936,27 +973,39 @@ select {
 
 /* Filtro de categorias premium (agora na sidebar) */
 .category-filter {
-  display: flex;
-  flex-direction: column;
-  padding: 0 20px 32px;
+  padding: 0 12px 32px;
 }
-.category-filter > * { margin-bottom: 4px; }
-.category-filter > *:last-child { margin-bottom: 0; }
 
+/*
+ * .cat-btn — Compatível com TVs antigas (WebKit antigo)
+ * Técnica: line-height = altura fixa (40px). Isso garante
+ * centralização vertical em qualquer motor WebKit, mesmo
+ * sem suporte correto a box-sizing ou flex em <button>.
+ */
 .cat-btn {
   display: block;
   width: 100%;
-  padding: 10px 14px;
+  height: 40px;
+  line-height: 40px;
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-top: 0;
+  padding-bottom: 0;
   background: transparent;
   border: 3px solid transparent;
   border-radius: var(--radius-sm);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-3);
   text-align: left;
-  transition: all var(--trans);
-  line-height: normal;
-  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  margin-bottom: 2px;
+  /* Garante que o box model não expanda o height */
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 .cat-btn:hover {
@@ -965,9 +1014,10 @@ select {
 }
 
 .cat-btn.active {
-  background: rgba(229, 9, 20, 0.2);
+  background: rgba(229, 9, 20, 0.22);
   color: var(--accent);
   font-weight: 700;
+  border-color: transparent;
 }
 
 .cat-btn:focus {
@@ -978,7 +1028,7 @@ select {
 }
 
 .cat-btn.active:focus {
-  background: rgba(229, 9, 20, 0.2);
+  background: rgba(229, 9, 20, 0.22);
   border-color: var(--accent);
 }
 

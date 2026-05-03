@@ -225,8 +225,18 @@ var App = (function () {
     var empty = document.getElementById('content-empty');
 
     if (searchBar) {
-      if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
+      if (tabName === 'movies' || tabName === 'series' || tabName === 'live') searchBar.classList.remove('hidden');
       else searchBar.classList.add('hidden');
+    }
+
+    /* Mostra/esconde o botão de busca na topbar */
+    var topbarSearchBtn = document.getElementById('topbar-search-btn');
+    if (topbarSearchBtn) {
+      if (tabName === 'movies' || tabName === 'series' || tabName === 'live') {
+        topbarSearchBtn.classList.add('visible');
+      } else {
+        topbarSearchBtn.classList.remove('visible');
+      }
     }
 
     if (searchInput) {
@@ -1095,6 +1105,26 @@ var App = (function () {
       e.preventDefault();
       _handleSearch();
     });
+
+    /* Botão de busca na topbar — foca o campo de busca e exibe o teclado */
+    var topbarSearchBtn = document.getElementById('topbar-search-btn');
+    if (topbarSearchBtn) {
+      topbarSearchBtn.addEventListener('click', function () {
+        /* Garante que o form de busca está visível */
+        if (form) form.classList.remove('hidden');
+        /* Foca o input e seleciona o conteúdo */
+        if (input) {
+          input.focus();
+          try { input.select(); } catch(e2) {}
+        }
+      });
+      topbarSearchBtn.addEventListener('keydown', function (e) {
+        if (e.keyCode === 13 || e.keyCode === 32) {
+          e.preventDefault();
+          topbarSearchBtn.click();
+        }
+      });
+    }
 
     // TV: captura Enter na fase capture para rodar ANTES do navigation.js
     input.addEventListener('keydown', function (e) {
