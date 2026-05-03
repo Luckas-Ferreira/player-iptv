@@ -715,7 +715,7 @@ select {
   display: inline-block;
   padding: 10px 22px;
   border: 3px solid transparent;
-  border-radius: 100px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 600;
   color: var(--text-3);
@@ -729,13 +729,13 @@ select {
 .menu-item:hover {
   background: var(--bg-surface);
   color: var(--text-1);
-  border-radius: 100px;
+  border-radius: var(--radius-sm);
 }
 
 .menu-item.active {
   background: var(--accent);
   color: #fff;
-  border-radius: 100px;
+  border-radius: var(--radius-sm);
 }
 
 .menu-item:focus {
@@ -744,7 +744,7 @@ select {
   box-shadow: 0 0 0 3px var(--accent);
   background: var(--bg-surface);
   color: var(--text-1);
-  border-radius: 100px;
+  border-radius: var(--radius-sm);
 }
 
 .menu-item.active:focus {
@@ -752,7 +752,7 @@ select {
   box-shadow: 0 0 0 3px var(--accent);
   background: var(--accent);
   color: #fff;
-  border-radius: 100px;
+  border-radius: var(--radius-sm);
 }
 
 /* Ícones do menu: usar SVG inline via CSS em vez de emoji */
