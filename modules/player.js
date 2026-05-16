@@ -440,9 +440,28 @@ var Player = (function () {
 
     function makeExts(orig) {
       orig = (orig || 'mp4').toLowerCase().replace(/^\./, '');
-      var list = ['mp4'];
-      if (orig !== 'mp4') list.unshift(orig); // extensão original tem prioridade
+      var list = [];
+
+      var ua = navigator.userAgent.toLowerCase();
+      var isTV = ua.indexOf('smart-tv') !== -1 || ua.indexOf('smarttv') !== -1 ||
+        ua.indexOf('tizen') !== -1 || ua.indexOf('webos') !== -1 ||
+        ua.indexOf('viera') !== -1 || ua.indexOf('panasonic') !== -1 ||
+        ua.indexOf('netcast') !== -1 || ua.indexOf('tv') !== -1;
+
+      if (isTV) {
+        // Para Smart TVs, M3U8 (HLS nativo) tem muito mais chance de rodar VOD sem travar na tela preta
+        list.push('m3u8');
+        list.push('mp4');
+        if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
+      } else {
+        // No PC, M3U8 nativo não roda, então tenta MP4 primeiro
+        list.push('mp4');
+        if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
+        list.push('m3u8');
+      }
+      
       list.push('ts');
+
       var seen = {}, uniq = [];
       for (var i = 0; i < list.length; i++) {
         if (!seen[list[i]]) { seen[list[i]] = true; uniq.push(list[i]); }
@@ -483,13 +502,13 @@ var Player = (function () {
     _showLoading('Carregando vídeo...');
     _playDirect(_vodUrls[0]);
 
-    /* Watchdog: 25s sem reprodução → tenta próxima URL/extensão */
+    /* Watchdog: 15s sem reprodução → tenta próxima URL/extensão */
     _startBufWatchdog(function () {
       if (!_isPlaying) {
-        console.warn('[Player] VOD watchdog: sem resposta em 25s');
+        console.warn('[Player] VOD watchdog: sem resposta em 15s');
         _tryNextVodUrl();
       }
-    }, 25000);
+    }, 15000);
   }
 
   function _tryNextVodUrl() {
@@ -505,7 +524,7 @@ var Player = (function () {
 
       _startBufWatchdog(function () {
         if (!_isPlaying) _tryNextVodUrl();
-      }, 20000);
+      }, 15000);
     } else {
       _showError(
         'Não foi possível reproduzir este vídeo.\n' +
@@ -531,20 +550,43 @@ var Player = (function () {
     if (!_video) return;
     _video.pause();
     _video.removeAttribute('src');
+    _video.innerHTML = ''; // Limpa as tags source
     try { _video.load(); } catch (e) { }
 
     _video.setAttribute('referrerpolicy', 'no-referrer');
     _video.preload = 'auto';
-    _video.src = url;
-    _video.load();
 
-    var p = _video.play();
-    if (p && p.catch) {
-      p.catch(function (err) {
-        console.warn('[Player] play() rejeitado:', err);
-        _showLoading(false);
-        _showOverlay();
-      });
+    // Algumas TVs antigas precisam da tag <source> para identificar o mime type corretamente
+    var source = document.createElement('source');
+    source.src = url;
+    if (url.indexOf('.m3u8') !== -1) {
+      source.type = 'application/x-mpegurl';
+    } else if (url.indexOf('.mp4') !== -1) {
+      source.type = 'video/mp4';
+    } else if (url.indexOf('.mkv') !== -1) {
+      source.type = 'video/mp4'; // Fallback para TV tentar processar
+    }
+    _video.appendChild(source);
+
+    _video.src = url;
+    try { _video.load(); } catch (e) { }
+
+    try {
+      var p = _video.play();
+      if (p && p.catch) {
+        p.catch(function (err) {
+          console.warn('[Player] play() rejeitado:', err);
+          _showOverlay();
+        });
+      }
+    } catch (e) {
+      // TVs muito antigas lançam exceção síncrona se o vídeo não estiver pronto
+      console.warn('[Player] Erro síncrono no play():', e);
+      var playOnCanPlay = function() {
+        _video.removeEventListener('canplay', playOnCanPlay);
+        try { _video.play(); } catch(err) {}
+      };
+      _video.addEventListener('canplay', playOnCanPlay);
     }
     // NÃO aplica _resumePendingTime aqui — é aplicado no _onMetadataLoaded
   }
