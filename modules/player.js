@@ -556,7 +556,7 @@ var Player = (function () {
     _video.innerHTML = ''; // Limpa as tags source
     try { _video.load(); } catch (e) { }
 
-    _video.setAttribute('referrerpolicy', 'no-referrer');
+    // Não define referrerpolicy: TVs antigas não reconhecem e podem bloquear a requisição
     _video.preload = 'auto';
 
     // Define src diretamente — método mais compatível com TVs antigas
@@ -796,10 +796,20 @@ var Player = (function () {
     }
 
     // Metadata carregou: o servidor respondeu e o vídeo é válido.
-    // Cancela o watchdog para não interromper um vídeo que está carregando.
-    // _isPlaying só é marcado quando 'playing' disparar de fato.
+    // Cancela o watchdog inicial e cria um novo de curta duração.
+    // Se 'playing' não disparar em 12s, tenta próxima URL.
+    // (Browsers de TV antigos podem carregar metadata mas nunca emitir 'playing')
     _clearBufWatchdog();
     _showLoading('Iniciando...');
+
+    if (_currentItem && (_currentItem._type === 'movie' || _currentItem._type === 'series')) {
+      _startBufWatchdog(function () {
+        if (!_isPlaying) {
+          console.warn('[Player] Metadata OK mas playing nunca disparou, tentando próxima URL...');
+          _tryNextVodUrl();
+        }
+      }, 12000);
+    }
 
     // Aplica seek de retomada somente aqui, após metadata estar disponível
     if (_resumePendingTime > 0 && _video && dur > _resumePendingTime) {
@@ -899,6 +909,13 @@ var Player = (function () {
   }
 
   function _onTimeUpdate() {
+    // Fallback para TVs antigas que não disparam o evento 'playing':
+    // se currentTime avançou, o vídeo está rodando — trata como 'playing'
+    if (!_isPlaying && _video && _video.currentTime > 0.2) {
+      console.log('[Player] playing detectado via timeupdate (browser antigo)');
+      _onPlaying();
+    }
+
     if (_isSeeking) return;
 
     var fill = document.getElementById('player-progress-fill');
