@@ -443,18 +443,20 @@ var Player = (function () {
       var list = [];
 
       var ua = navigator.userAgent.toLowerCase();
-      var isTV = ua.indexOf('smart-tv') !== -1 || ua.indexOf('smarttv') !== -1 ||
+      // Detecção mais precisa de Smart TV moderna (com HLS nativo confiável)
+      var isModernTV = ua.indexOf('smart-tv') !== -1 || ua.indexOf('smarttv') !== -1 ||
         ua.indexOf('tizen') !== -1 || ua.indexOf('webos') !== -1 ||
         ua.indexOf('viera') !== -1 || ua.indexOf('panasonic') !== -1 ||
-        ua.indexOf('netcast') !== -1 || ua.indexOf('tv') !== -1;
+        ua.indexOf('netcast') !== -1;
 
-      if (isTV) {
-        // Para Smart TVs, M3U8 (HLS nativo) tem muito mais chance de rodar VOD sem travar na tela preta
-        list.push('m3u8');
+      if (isModernTV) {
+        // Para Smart TVs modernas, MP4 é mais confiável para VOD
+        // M3U8 como fallback pois nem toda Smart TV suporta HLS VOD nativo
         list.push('mp4');
+        list.push('m3u8');
         if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
       } else {
-        // No PC, M3U8 nativo não roda, então tenta MP4 primeiro
+        // No PC e TVs antigas/genéricas, MP4 primeiro
         list.push('mp4');
         if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
         list.push('m3u8');
@@ -502,13 +504,14 @@ var Player = (function () {
     _showLoading('Carregando vídeo...');
     _playDirect(_vodUrls[0]);
 
-    /* Watchdog: 15s sem reprodução → tenta próxima URL/extensão */
+    /* Watchdog: 25s sem reprodução → tenta próxima URL/extensão
+       TVs antigas podem demorar mais para iniciar o buffer */
     _startBufWatchdog(function () {
       if (!_isPlaying) {
-        console.warn('[Player] VOD watchdog: sem resposta em 15s');
+        console.warn('[Player] VOD watchdog: sem resposta em 25s');
         _tryNextVodUrl();
       }
-    }, 15000);
+    }, 25000);
   }
 
   function _tryNextVodUrl() {
@@ -524,7 +527,7 @@ var Player = (function () {
 
       _startBufWatchdog(function () {
         if (!_isPlaying) _tryNextVodUrl();
-      }, 15000);
+      }, 25000);
     } else {
       _showError(
         'Não foi possível reproduzir este vídeo.\n' +
@@ -556,37 +559,67 @@ var Player = (function () {
     _video.setAttribute('referrerpolicy', 'no-referrer');
     _video.preload = 'auto';
 
-    // Algumas TVs antigas precisam da tag <source> para identificar o mime type corretamente
-    var source = document.createElement('source');
-    source.src = url;
+    // Determina o tipo MIME correto
+    var mimeType = '';
     if (url.indexOf('.m3u8') !== -1) {
-      source.type = 'application/x-mpegurl';
+      mimeType = 'application/x-mpegurl';
     } else if (url.indexOf('.mp4') !== -1) {
-      source.type = 'video/mp4';
+      mimeType = 'video/mp4';
     } else if (url.indexOf('.mkv') !== -1) {
-      source.type = 'video/mp4'; // Fallback para TV tentar processar
+      mimeType = 'video/x-matroska';
+    } else if (url.indexOf('.ts') !== -1) {
+      mimeType = 'video/mp2t';
     }
-    _video.appendChild(source);
 
-    _video.src = url;
+    // Usa apenas a tag <source> para TVs antigas — não mistura src + source
+    // (definir _video.src E <source> ao mesmo tempo confunde browsers antigos)
+    if (mimeType) {
+      var source = document.createElement('source');
+      source.src = url;
+      source.type = mimeType;
+      _video.appendChild(source);
+    } else {
+      _video.src = url;
+    }
+
     try { _video.load(); } catch (e) { }
 
+    // Aguarda canplay antes de chamar play() — essencial para TVs lentas
+    var _didPlay = false;
+    var _doPlay = function () {
+      if (_didPlay) return;
+      _didPlay = true;
+      try {
+        var p = _video.play();
+        if (p && p.catch) {
+          p.catch(function (err) {
+            console.warn('[Player] play() rejeitado:', err);
+            _showOverlay();
+          });
+        }
+      } catch (e) {
+        console.warn('[Player] Erro síncrono no play():', e);
+      }
+    };
+
+    // Tenta play direto; em TVs antigas pode precisar aguardar canplay
     try {
       var p = _video.play();
-      if (p && p.catch) {
+      if (p && p.then) {
+        _didPlay = true;
         p.catch(function (err) {
-          console.warn('[Player] play() rejeitado:', err);
-          _showOverlay();
+          // Se play() falhou, aguarda canplay
+          _didPlay = false;
+          console.warn('[Player] play() falhou, aguardando canplay:', err);
+          _video.addEventListener('canplay', _doPlay, { once: true });
         });
+      } else {
+        _didPlay = true;
       }
     } catch (e) {
-      // TVs muito antigas lançam exceção síncrona se o vídeo não estiver pronto
+      // TVs muito antigas lançam exceção síncrona
       console.warn('[Player] Erro síncrono no play():', e);
-      var playOnCanPlay = function() {
-        _video.removeEventListener('canplay', playOnCanPlay);
-        try { _video.play(); } catch(err) {}
-      };
-      _video.addEventListener('canplay', playOnCanPlay);
+      _video.addEventListener('canplay', _doPlay, { once: true });
     }
     // NÃO aplica _resumePendingTime aqui — é aplicado no _onMetadataLoaded
   }
@@ -800,9 +833,10 @@ var Player = (function () {
       return;
     }
 
-    _showLoading(false);
-    _isPlaying = true;
-    _clearBufWatchdog();
+    // Não marca _isPlaying aqui — só no evento 'playing' de fato.
+    // Em TVs antigas loadedmetadata dispara mas o vídeo pode não começar
+    // a rodar imediatamente, o que cancelaria o watchdog prematuramente.
+    _showLoading('Iniciando...');
 
     // Aplica seek de retomada somente aqui, após metadata estar disponível
     if (_resumePendingTime > 0 && _video && dur > _resumePendingTime) {
