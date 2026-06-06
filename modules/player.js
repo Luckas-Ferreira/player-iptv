@@ -434,6 +434,12 @@ var Player = (function () {
       }
     }
 
+    // BYPASS: Força IP direto apenas para os vídeos.
+    // Isso evita bloqueio do Cloudflare / falha de SSL no player de vídeo nativo das TVs antigas
+    if (base.indexOf('godisfaithful') !== -1 || base.indexOf('streams4k') !== -1) {
+      base = 'http://191.96.78.246';
+    }
+
     var u = encodeURIComponent(creds.username);
     var p = encodeURIComponent(creds.password);
     var urls = [];
