@@ -559,67 +559,29 @@ var Player = (function () {
     _video.setAttribute('referrerpolicy', 'no-referrer');
     _video.preload = 'auto';
 
-    // Determina o tipo MIME correto
-    var mimeType = '';
-    if (url.indexOf('.m3u8') !== -1) {
-      mimeType = 'application/x-mpegurl';
-    } else if (url.indexOf('.mp4') !== -1) {
-      mimeType = 'video/mp4';
-    } else if (url.indexOf('.mkv') !== -1) {
-      mimeType = 'video/x-matroska';
-    } else if (url.indexOf('.ts') !== -1) {
-      mimeType = 'video/mp2t';
-    }
-
-    // Usa apenas a tag <source> para TVs antigas — não mistura src + source
-    // (definir _video.src E <source> ao mesmo tempo confunde browsers antigos)
-    if (mimeType) {
-      var source = document.createElement('source');
-      source.src = url;
-      source.type = mimeType;
-      _video.appendChild(source);
-    } else {
-      _video.src = url;
-    }
-
+    // Define src diretamente — método mais compatível com TVs antigas
+    _video.src = url;
     try { _video.load(); } catch (e) { }
 
-    // Aguarda canplay antes de chamar play() — essencial para TVs lentas
-    var _didPlay = false;
-    var _doPlay = function () {
-      if (_didPlay) return;
-      _didPlay = true;
-      try {
-        var p = _video.play();
-        if (p && p.catch) {
-          p.catch(function (err) {
-            console.warn('[Player] play() rejeitado:', err);
-            _showOverlay();
-          });
-        }
-      } catch (e) {
-        console.warn('[Player] Erro síncrono no play():', e);
-      }
-    };
-
-    // Tenta play direto; em TVs antigas pode precisar aguardar canplay
     try {
       var p = _video.play();
-      if (p && p.then) {
-        _didPlay = true;
+      if (p && p.catch) {
         p.catch(function (err) {
-          // Se play() falhou, aguarda canplay
-          _didPlay = false;
-          console.warn('[Player] play() falhou, aguardando canplay:', err);
-          _video.addEventListener('canplay', _doPlay, { once: true });
+          // Se autoplay falhou (política do browser), aguarda canplay
+          console.warn('[Player] play() rejeitado, aguardando canplay:', err);
+          _video.addEventListener('canplay', function onCanPlay() {
+            _video.removeEventListener('canplay', onCanPlay);
+            try { _video.play(); } catch (e2) { console.warn('[Player] canplay play() falhou:', e2); }
+          });
         });
-      } else {
-        _didPlay = true;
       }
     } catch (e) {
-      // TVs muito antigas lançam exceção síncrona
+      // TVs muito antigas lançam exceção síncrona se o vídeo não estiver pronto
       console.warn('[Player] Erro síncrono no play():', e);
-      _video.addEventListener('canplay', _doPlay, { once: true });
+      _video.addEventListener('canplay', function onCanPlay() {
+        _video.removeEventListener('canplay', onCanPlay);
+        try { _video.play(); } catch (e2) { }
+      });
     }
     // NÃO aplica _resumePendingTime aqui — é aplicado no _onMetadataLoaded
   }
@@ -833,9 +795,10 @@ var Player = (function () {
       return;
     }
 
-    // Não marca _isPlaying aqui — só no evento 'playing' de fato.
-    // Em TVs antigas loadedmetadata dispara mas o vídeo pode não começar
-    // a rodar imediatamente, o que cancelaria o watchdog prematuramente.
+    // Metadata carregou: o servidor respondeu e o vídeo é válido.
+    // Cancela o watchdog para não interromper um vídeo que está carregando.
+    // _isPlaying só é marcado quando 'playing' disparar de fato.
+    _clearBufWatchdog();
     _showLoading('Iniciando...');
 
     // Aplica seek de retomada somente aqui, após metadata estar disponível
