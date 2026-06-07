@@ -418,9 +418,8 @@ select {
 }
 
 .tab-btn:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: var(--radius-xs);
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 /* Form */
@@ -519,8 +518,8 @@ select {
 }
 
 .btn-primary:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .btn-primary:active {
@@ -551,8 +550,8 @@ select {
 }
 
 .btn-secondary:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .btn-outline {
@@ -575,8 +574,8 @@ select {
   outline: none;
 }
 .btn-outline:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .btn-large {
@@ -602,8 +601,8 @@ select {
   outline: none;
 }
 .btn-danger-sm:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .btn-toggle {
@@ -625,8 +624,8 @@ select {
 }
 
 .btn-toggle:focus {
+  box-shadow: 0 0 0 3px var(--accent);
   outline: none;
-  border: 3px solid var(--accent);
 }
 
 .btn-icon {
@@ -822,8 +821,8 @@ select {
   outline: none;
 }
 .topbar-logout:focus {
-  outline: none;
   box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 /* ─── Botão de Busca na Topbar ─────────────────── */
@@ -1052,8 +1051,8 @@ select {
 }
 
 .cat-btn:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
   background: var(--bg-surface);
   color: var(--text-1);
   border-color: transparent;
@@ -1149,8 +1148,8 @@ select {
 }
 
 .card:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent), 0 8px 32px rgba(0,0,0,0.5);
+  outline: none;
   z-index: 2;
 }
 
@@ -1360,8 +1359,8 @@ select {
 }
 
 .card-fav:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
   opacity: 1;
 }
 
@@ -1639,8 +1638,8 @@ select {
 }
 
 .settings-item:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
   border-color: transparent;
 }
 
@@ -1687,8 +1686,8 @@ select {
   outline: none;
 }
 .ctrl-btn:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .ctrl-display {
@@ -1747,25 +1746,24 @@ select {
   flex-direction: column;
 }
 
-/* Hero section: ocupa a parte sobre o backdrop */
 .detail-hero {
   display: flex;
   align-items: flex-end;
-  min-height: 52vh;
-  padding: 32px 52px 40px;
-  gap: 40px;
+  min-height: 55vh;
+  padding: 28px 52px 48px;
+  gap: 44px;
 }
 
 /* Poster (capa) com proporção de cinema */
 .detail-cover {
-  width: 150px;
-  min-width: 150px;
-  height: 225px;
-  border-radius: 12px;
+  width: 175px;
+  min-width: 175px;
+  height: 260px;
+  border-radius: 14px;
   object-fit: cover;
   background: var(--bg-surface);
-  border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 4px 12px rgba(0,0,0,0.5);
+  border: 1.5px solid rgba(255,255,255,0.14);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6);
   flex-shrink: 0;
 }
 
@@ -1780,32 +1778,32 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: var(--radius-sm);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1.5px solid rgba(255,255,255,0.22);
+  border-radius: 10px;
   letter-spacing: 0.2px;
-  transition: background var(--trans), color var(--trans);
-  /* Posicionado no topo, nao ocupa toda a linha */
-  margin: 24px 0 0 52px;
+  transition: background var(--trans), color var(--trans), box-shadow var(--trans);
+  margin: 28px 0 0 52px;
   width: auto;
   white-space: nowrap;
   align-self: flex-start;
+  backdrop-filter: blur(8px);
 }
 
-.detail-back-btn:hover,
+.detail-back-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
 .detail-back-btn:focus {
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--text-1);
+  box-shadow: 0 0 0 3px var(--accent);
   outline: none;
+  background: rgba(255, 255, 255, 0.14);
 }
-.detail-back-btn:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
-}
+
 
 .detail-title {
   font-size: 40px;
@@ -1966,11 +1964,8 @@ select {
 .season-btn:focus {
   border-color: var(--accent);
   color: var(--text-1);
+  box-shadow: 0 0 0 3px rgba(229,9,20,0.35);
   outline: none;
-}
-.season-btn:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
 }
 
 .episodes-grid {
@@ -2015,10 +2010,7 @@ select {
   border-color: var(--accent);
   background: var(--bg-raised);
   outline: none;
-}
-.episode-card:focus {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
 }
 
 .episode-thumb {
@@ -2122,6 +2114,7 @@ select {
 }
 .player-btn-back:focus {
   box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 .player-channel-info {
@@ -2292,7 +2285,7 @@ select {
   background: var(--accent);
   transform: scale(1.1);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.5);
+  box-shadow: 0 0 0 4px rgba(229, 9, 20, 0.6), 0 0 0 7px rgba(229, 9, 20, 0.2);
 }
 
 .player-bottom-bar {
@@ -2353,8 +2346,8 @@ select {
 .player-ctrl-btn:hover,
 .player-ctrl-btn:focus {
   background: rgba(255, 255, 255, 0.12);
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
+  outline: none;
 }
 
 /* Loading / Error do player */

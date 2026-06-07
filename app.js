@@ -11,7 +11,8 @@
 var App = (function () {
   'use strict';
 
-  var MAXITEMS = 100;
+  var MAXITEMS = 60; /* Reduzido de 100: menos cards no DOM = menos travamento na Smart TV */
+  var _catLoadTimer = null; /* Debounce de troca de categoria */
 
   var _state = {
     mode: 'xtream',
@@ -476,9 +477,17 @@ var App = (function () {
           var searchInput = document.getElementById('header-search-input');
           if (searchInput) searchInput.value = '';
           _state.isSearching = false;
-          if (Renderer.destroyVirtualScroll) Renderer.destroyVirtualScroll();
-          Renderer.setLoading(true);
-          _startStreamingLoad(getStreams, cat.category_id);
+
+          /* Debounce: espera 300ms antes de trocar — se o usuário navegar rápido
+             em várias categorias, só a última é carregada, evitando múltiplos
+             requests/renders simultâneos que travam Smart TVs com pouca memória. */
+          if (_catLoadTimer) { clearTimeout(_catLoadTimer); _catLoadTimer = null; }
+          _catLoadTimer = setTimeout(function () {
+            _catLoadTimer = null;
+            if (Renderer.destroyVirtualScroll) Renderer.destroyVirtualScroll();
+            Renderer.setLoading(true);
+            _startStreamingLoad(getStreams, cat.category_id);
+          }, 300);
         });
 
         btn.addEventListener('keydown', function (e) {
@@ -615,7 +624,7 @@ var App = (function () {
     _state.miniItem = item;
 
     var next = _findNextItem(item);
-    if (next) Player.setNextItem(next, function () { _openPlayer(next); });
+    if (next) Player.setNextItem(next, function () { _openPlayer(Object.assign({}, next, { _fromAutoplay: true })); });
     else Player.setNextItem(null);
   }
 

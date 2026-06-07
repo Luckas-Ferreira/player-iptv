@@ -109,6 +109,13 @@ var Player = (function () {
     _isSeeking = false;
     if (_seekTimer) clearTimeout(_seekTimer);
 
+    // Autoplay para o próximo episódio: sempre começa do zero, nunca retoma progresso anterior
+    if (item._fromAutoplay) {
+      _resumePendingTime = 0;
+      _startPlayback(item);
+      return;
+    }
+
     // Item da watchlist já vem com _resumeTime definido
     // Usa esse valor como pendente e vai direto para playback
     if (item._resumeTime && item._resumeTime > 10 && item._type !== 'live') {

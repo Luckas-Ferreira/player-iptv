@@ -16,7 +16,7 @@ var Renderer = (function () {
   'use strict';
 
   /* ─── CONFIGURAÇÃO ──────────────────────────────────────── */
-  var IMGMAX = 4;          /* 4 simultâneas — rápido o suficiente, não trava */
+  var IMGMAX = 2;          /* 2 simultâneas — menos pressão de memória/rede em Smart TVs antigas */
   var IMG_DELAY = 100;     /* ms entre tentativas de processar fila */
   var IMG_TIMEOUT = 10000; /* 10s timeout por imagem */
   var IMG_RETRY_DELAY = 800; /* ms mais curto antes do retry proxy */
@@ -400,8 +400,8 @@ var Renderer = (function () {
    * - DOM_MAX limita nós no DOM; excedente é removido e compensado com spacer
    */
   var Pager = (function () {
-    var CHUNK    = 20;   /* itens por render */
-    var DOM_MAX  = 400;  /* máx cards no DOM ao mesmo tempo */
+    var CHUNK    = 12;   /* itens por render — menos operações DOM de uma vez */
+    var DOM_MAX  = 120;  /* máx cards no DOM — reduzido para não estourar memória da TV */
     var MARGIN   = 500;  /* px antes do fim para carregar próximo chunk */
 
     var _grid        = null;
