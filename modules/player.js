@@ -434,19 +434,6 @@ var Player = (function () {
       }
     }
 
-    // O bypass de IP hardcoded (191.96.78.246) foi removido para usar a URL real do serverInfo.
-    // Além do base (IP/serverInfo), vamos tentar também a URL original se for HTTPS,
-    // pois navegadores modernos bloqueiam streaming HTTP em sites HTTPS (Mixed Content).
-    var basesToTry = [base];
-    if (creds.server && creds.server !== base) {
-      // Prioriza a URL original (provavelmente HTTPS) no navegador se estivermos rodando em HTTPS
-      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && creds.server.indexOf('https:') === 0) {
-        basesToTry.unshift(creds.server);
-      } else {
-        basesToTry.push(creds.server);
-      }
-    }
-
     var u = encodeURIComponent(creds.username);
     var p = encodeURIComponent(creds.password);
     var urls = [];
@@ -454,27 +441,11 @@ var Player = (function () {
     function makeExts(orig) {
       orig = (orig || 'mp4').toLowerCase().replace(/^\./, '');
       var list = [];
-
-      var ua = navigator.userAgent.toLowerCase();
-      // Detecção mais precisa de Smart TV moderna (com HLS nativo confiável)
-      var isModernTV = ua.indexOf('smart-tv') !== -1 || ua.indexOf('smarttv') !== -1 ||
-        ua.indexOf('tizen') !== -1 || ua.indexOf('webos') !== -1 ||
-        ua.indexOf('viera') !== -1 || ua.indexOf('panasonic') !== -1 ||
-        ua.indexOf('netcast') !== -1;
-
-      if (isModernTV) {
-        // Para Smart TVs modernas, MP4 é mais confiável para VOD
-        // M3U8 como fallback pois nem toda Smart TV suporta HLS VOD nativo
-        list.push('mp4');
-        list.push('m3u8');
-        if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
-      } else {
-        // No PC e TVs antigas/genéricas, MP4 primeiro
-        list.push('mp4');
-        if (orig !== 'mp4' && orig !== 'm3u8') list.push(orig);
-        list.push('m3u8');
-      }
       
+      // Sempre tentamos a extensão original PRIMEIRO. Se o servidor tiver MKV e pedirmos MP4, ele trava o vídeo tentando transcodificar.
+      list.push(orig);
+      if (orig !== 'mp4') list.push('mp4');
+      if (orig !== 'm3u8') list.push('m3u8');
       list.push('ts');
 
       var seen = {}, uniq = [];
@@ -488,17 +459,13 @@ var Player = (function () {
       var id = item.vod_id || item.stream_id || item.id;
       if (!id) return [];
       var exts = makeExts(item.container_extension);
-      for (var b = 0; b < basesToTry.length; b++) {
-        for (var i = 0; i < exts.length; i++) {
-          urls.push(basesToTry[b] + '/movie/' + u + '/' + p + '/' + id + '.' + exts[i]);
-        }
+      for (var i = 0; i < exts.length; i++) {
+        urls.push(base + '/movie/' + u + '/' + p + '/' + id + '.' + exts[i]);
       }
     } else if (item._type === 'series' && item._episodeId) {
       var extsSeries = makeExts(item._episodeExt);
-      for (var b = 0; b < basesToTry.length; b++) {
-        for (var j = 0; j < extsSeries.length; j++) {
-          urls.push(basesToTry[b] + '/series/' + u + '/' + p + '/' + item._episodeId + '.' + extsSeries[j]);
-        }
+      for (var j = 0; j < extsSeries.length; j++) {
+        urls.push(base + '/series/' + u + '/' + p + '/' + item._episodeId + '.' + extsSeries[j]);
       }
     }
 
