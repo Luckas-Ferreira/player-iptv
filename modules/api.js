@@ -120,7 +120,13 @@ var API = (function () {
     var key = search ? ('live_search_' + search) : ('live_' + (categoryId || 'all'));
     var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
     var url = _xtreamUrl('get_live_streams', extra);
-    
+
+    /* Cache hit: retorna imediatamente sem nova requisição */
+    if (cache[key]) {
+      if (onChunk) onChunk(cache[key]);
+      return Promise.resolve(cache[key]);
+    }
+
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
         onChunk(chunk.map(function (s) { s._type = 'live'; return s; }));
@@ -140,6 +146,12 @@ var API = (function () {
     var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
     var url = _xtreamUrl('get_vod_streams', extra);
 
+    /* Cache hit: retorna imediatamente sem nova requisição */
+    if (cache[key]) {
+      if (onChunk) onChunk(cache[key]);
+      return Promise.resolve(cache[key]);
+    }
+
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
         onChunk(chunk.map(function (s) { s._type = 'movie'; return s; }));
@@ -158,6 +170,12 @@ var API = (function () {
     var key = search ? ('series_search_' + search) : ('series_' + (categoryId || 'all'));
     var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
     var url = _xtreamUrl('get_series', extra);
+
+    /* Cache hit: retorna imediatamente sem nova requisição */
+    if (cache[key]) {
+      if (onChunk) onChunk(cache[key]);
+      return Promise.resolve(cache[key]);
+    }
 
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
