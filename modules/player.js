@@ -434,10 +434,17 @@ var Player = (function () {
       }
     }
 
-    // BYPASS: Força IP direto apenas para os vídeos.
-    // Isso evita bloqueio do Cloudflare / falha de SSL no player de vídeo nativo das TVs antigas
-    if (base.indexOf('godisfaithful') !== -1 || base.indexOf('streams4k') !== -1) {
-      base = 'http://191.96.78.246';
+    // O bypass de IP hardcoded (191.96.78.246) foi removido para usar a URL real do serverInfo.
+    // Além do base (IP/serverInfo), vamos tentar também a URL original se for HTTPS,
+    // pois navegadores modernos bloqueiam streaming HTTP em sites HTTPS (Mixed Content).
+    var basesToTry = [base];
+    if (creds.server && creds.server !== base) {
+      // Prioriza a URL original (provavelmente HTTPS) no navegador se estivermos rodando em HTTPS
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && creds.server.indexOf('https:') === 0) {
+        basesToTry.unshift(creds.server);
+      } else {
+        basesToTry.push(creds.server);
+      }
     }
 
     var u = encodeURIComponent(creds.username);
@@ -481,13 +488,17 @@ var Player = (function () {
       var id = item.vod_id || item.stream_id || item.id;
       if (!id) return [];
       var exts = makeExts(item.container_extension);
-      for (var i = 0; i < exts.length; i++) {
-        urls.push(base + '/movie/' + u + '/' + p + '/' + id + '.' + exts[i]);
+      for (var b = 0; b < basesToTry.length; b++) {
+        for (var i = 0; i < exts.length; i++) {
+          urls.push(basesToTry[b] + '/movie/' + u + '/' + p + '/' + id + '.' + exts[i]);
+        }
       }
     } else if (item._type === 'series' && item._episodeId) {
       var extsSeries = makeExts(item._episodeExt);
-      for (var j = 0; j < extsSeries.length; j++) {
-        urls.push(base + '/series/' + u + '/' + p + '/' + item._episodeId + '.' + extsSeries[j]);
+      for (var b = 0; b < basesToTry.length; b++) {
+        for (var j = 0; j < extsSeries.length; j++) {
+          urls.push(basesToTry[b] + '/series/' + u + '/' + p + '/' + item._episodeId + '.' + extsSeries[j]);
+        }
       }
     }
 

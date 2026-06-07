@@ -181,28 +181,21 @@ var API = (function () {
   function getLiveStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
     var base = _getEffectiveServer('live', useIp !== false);
-    // BYPASS: Força IP direto para streaming de vídeo (evita bloqueios do Cloudflare na TV)
-    if (base.indexOf('godisfaithful') !== -1 || base.indexOf('streams4k') !== -1) {
-      base = 'http://191.96.78.246';
-    }
+    // O bypass de IP hardcoded (191.96.78.246) foi removido para usar o IP real do serverInfo
     var url = base + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
   function getVodStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
     var base = _getEffectiveServer('movie', useIp !== false);
-    if (base.indexOf('godisfaithful') !== -1 || base.indexOf('streams4k') !== -1) {
-      base = 'http://191.96.78.246';
-    }
+    // O bypass de IP hardcoded foi removido
     var url = base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
   function getEpisodeStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
     var c = Auth.getCredentials(); if (!c) return '';
     var base = _getEffectiveServer('series', useIp !== false);
-    if (base.indexOf('godisfaithful') !== -1 || base.indexOf('streams4k') !== -1) {
-      base = 'http://191.96.78.246';
-    }
+    // O bypass de IP hardcoded foi removido
     var url = base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
     return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
   }
