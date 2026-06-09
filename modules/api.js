@@ -1,94 +1,43 @@
 /**
- * api.js – v5 — Bypass Cloudflare via serverInfo.url (godisfaithful.shop:80)
+ * api.js — Xtream Codes + M3U
  *
- * DIAGNÓSTICO CONFIRMADO (console log):
- *   serverInfo = { url:"godisfaithful.shop", port:"80", server_protocol:"http", ... }
+ * REGRA DE SERVIDOR (URL Builder):
+ *  1. Se o usuário digitou algo no login (c.server), USA ISSO.
+ *     → Permite testar IPs diferentes sem mexer no código.
+ *  2. Senão, cai no DEFAULT abaixo (`IPTV_DEFAULT_BASE`).
  *
- * O servidor se autoidentifica como "godisfaithful.shop" na porta 80 via HTTP.
- * A streams4k.xyz é apenas um alias que passa pelo Cloudflare (HTTPS, porta 443).
+ * Por que existe um DEFAULT:
+ *  - Domínio streams4k.xyz força HTTPS via Cloudflare e Smart TVs
+ *    antigas (Panasonic Viera, LG NetCast) NÃO negociam o TLS moderno.
+ *  - O default `http://bmnew26.site` é o servidor real informado pelo
+ *    próprio Xtream Codes (campo server_info.url da resposta do login).
+ *  - Se o usuário descobrir um IP de origem direto (sem Cloudflare),
+ *    basta digitar no campo "Servidor" do login — ele substitui o default.
  *
- * SOLUÇÃO v5:
- * Quando useIp=true e serverInfo tem url+port+server_protocol,
- * usa DIRETAMENTE o endereço real do servidor: http://godisfaithful.shop:80
- * (ou qualquer IP que o usuário configurar no campo servidor do login).
- *
- * DICA RÁPIDA (sem alterar código):
- * Basta fazer logout e logar com o servidor: http://191.96.78.246
- * Aí c.server já é o IP e nada mais precisa de bypass.
+ * Cache em memória — limpa via Configurações → "Atualizar Listas"
  */
 var API = (function () {
   'use strict';
 
-  var cache = {
-    liveCategories: null, liveStreams: null,
-    vodCategories: null, vodStreams: null,
-    seriesCategories: null, seriesList: null,
-    m3uData: null
-  };
+  /* Default usado quando o usuário não digitou nada no login. */
+  var IPTV_DEFAULT_BASE = 'http://bmnew26.site';
 
-  var _reIPv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+  var cache = {};
 
   /* ── URL Builder ─────────────────────────────────────── */
-
-  /**
-   * Retorna a base URL para requisições.
-   *
-   * Prioridade quando useIp=true:
-   *  1. Se c.server já é um IP → usa direto (usuário logou com IP)
-   *  2. serverInfo.server_ip / .ip → IP explícito
-   *  3. serverInfo.url (mesmo sendo domínio) + serverInfo.port com HTTP
-   *     → usa o endereço que o próprio servidor reporta, ex: http://godisfaithful.shop
-   *  4. Fallback: c.server original
-   */
-  function _getEffectiveServer(typeOrAction, useIp) {
+  function _base() {
     var c = Auth.getCredentials();
-    if (!c || !c.server) return '';
-    if (!useIp) return c.server;
-
-    /* 1. c.server já é um IP? Usa direto. */
-    var serverHost = (c.server.match(/^https?:\/\/([^/:]+)/) || [])[1] || '';
-    if (_reIPv4.test(serverHost)) return c.server;
-
-    var si = c.serverInfo;
-    if (!si) return c.server;
-
-    /* 2. IP explícito no serverInfo */
-    var ip = '';
-    if (si.server_ip && _reIPv4.test(String(si.server_ip).trim())) ip = String(si.server_ip).trim();
-    if (!ip && si.ip && _reIPv4.test(String(si.ip).trim())) ip = String(si.ip).trim();
-
-    if (ip) {
-      var port0 = String(si.port || '80').trim();
-      return 'http://' + ip + (port0 === '80' ? '' : ':' + port0);
+    if (c && c.server && c.server.indexOf('http') === 0) {
+      return c.server.replace(/\/+$/, '');
     }
-
-    /* 3. Usa serverInfo.url + serverInfo.port com o protocolo real do servidor
-          (mesmo que url seja domínio, ex: godisfaithful.shop:80 via HTTP)
-          Isso bypassa streams4k.xyz → Cloudflare → HTTPS overhead.          */
-    var siUrl = String(si.url || '').trim();
-    var siProto = String(si.server_protocol || 'http').trim().toLowerCase();
-    var siPort = String(si.port || '80').trim();
-
-    if (siUrl) {
-      /* Se siUrl já é IP, usa direto */
-      if (_reIPv4.test(siUrl)) {
-        return 'http://' + siUrl + (siPort === '80' ? '' : ':' + siPort);
-      }
-      /* É um domínio (ex: godisfaithful.shop) — usa com HTTP porta 80 */
-      var base = siProto + '://' + siUrl + (siPort === '80' && siProto === 'http' ? '' : ':' + siPort);
-      console.log('[API] Bypass via serverInfo.url:', base, '(antes:', c.server + ')');
-      return base;
-    }
-
-    /* 4. Fallback */
-    return c.server;
+    return IPTV_DEFAULT_BASE;
   }
 
   function _xtreamUrl(action, extra) {
     var c = Auth.getCredentials();
     if (!c || c.type !== 'xtream') return null;
-    var base = _getEffectiveServer(action, true);
-    var url = base + '/player_api.php?username=' + encodeURIComponent(c.username) +
+    var url = _base() + '/player_api.php' +
+      '?username=' + encodeURIComponent(c.username) +
       '&password=' + encodeURIComponent(c.password) +
       '&action=' + action;
     if (extra) url += extra;
@@ -96,126 +45,86 @@ var API = (function () {
   }
 
   /* ── Categorias ─────────────────────────────────────── */
-  function getLiveCategories() {
-    if (cache.liveCategories) return Promise.resolve(cache.liveCategories);
-    return Auth._fetchJSON(_xtreamUrl('get_live_categories')).then(function (d) {
-      cache.liveCategories = d || []; return cache.liveCategories;
+  function _fetchCategories(action, key) {
+    if (cache[key]) return Promise.resolve(cache[key]);
+    return Auth._fetchJSON(_xtreamUrl(action)).then(function (d) {
+      cache[key] = d || [];
+      return cache[key];
     });
   }
-  function getVodCategories() {
-    if (cache.vodCategories) return Promise.resolve(cache.vodCategories);
-    return Auth._fetchJSON(_xtreamUrl('get_vod_categories')).then(function (d) {
-      cache.vodCategories = d || []; return cache.vodCategories;
-    });
-  }
-  function getSeriesCategories() {
-    if (cache.seriesCategories) return Promise.resolve(cache.seriesCategories);
-    return Auth._fetchJSON(_xtreamUrl('get_series_categories')).then(function (d) {
-      cache.seriesCategories = d || []; return cache.seriesCategories;
-    });
-  }
+
+  function getLiveCategories()   { return _fetchCategories('get_live_categories',   'cats_live'); }
+  function getVodCategories()    { return _fetchCategories('get_vod_categories',    'cats_vod'); }
+  function getSeriesCategories() { return _fetchCategories('get_series_categories', 'cats_series'); }
 
   /* ── Streams ─────────────────────────────────────────── */
-  function getLiveStreams(categoryId, onChunk, search) {
-    var key = search ? ('live_search_' + search) : ('live_' + (categoryId || 'all'));
-    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
-    var url = _xtreamUrl('get_live_streams', extra);
+  function _fetchStreams(action, typeTag, categoryId, onChunk, search) {
+    var key = search
+      ? (typeTag + '_search_' + search)
+      : (typeTag + '_' + (categoryId || 'all'));
 
-    /* Cache hit: retorna imediatamente sem nova requisição */
+    var extra = search
+      ? '&search=' + encodeURIComponent(search)
+      : (categoryId ? '&category_id=' + categoryId : '');
+
+    var url = _xtreamUrl(action, extra);
+
+    /* Cache hit */
     if (cache[key]) {
       if (onChunk) onChunk(cache[key]);
       return Promise.resolve(cache[key]);
     }
 
-    if (onChunk) {
-      return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s._type = 'live'; return s; }));
-      }, search ? 15000 : 3000).then(function (all) {
-        cache[key] = all.map(function (s) { s._type = 'live'; return s; });
-        return cache[key];
-      });
-    }
-    return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s._type = 'live'; return s; });
-      return cache[key];
-    });
-  }
-
-  function getVodStreams(categoryId, onChunk, search) {
-    var key = search ? ('vod_search_' + search) : ('vod_' + (categoryId || 'all'));
-    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
-    var url = _xtreamUrl('get_vod_streams', extra);
-
-    /* Cache hit: retorna imediatamente sem nova requisição */
-    if (cache[key]) {
-      if (onChunk) onChunk(cache[key]);
-      return Promise.resolve(cache[key]);
+    function tag(arr) {
+      for (var i = 0; i < arr.length; i++) arr[i]._type = typeTag;
+      return arr;
     }
 
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s._type = 'movie'; return s; }));
-      }, search ? 15000 : 3000).then(function (all) {
-        cache[key] = all.map(function (s) { s._type = 'movie'; return s; });
+        onChunk(tag(chunk));
+      }, search ? 5000 : 1500).then(function (all) {
+        cache[key] = tag(all);
         return cache[key];
       });
     }
+
     return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s._type = 'movie'; return s; });
+      cache[key] = tag(data || []);
       return cache[key];
     });
   }
 
-  function getSeriesList(categoryId, onChunk, search) {
-    var key = search ? ('series_search_' + search) : ('series_' + (categoryId || 'all'));
-    var extra = search ? ('&search=' + encodeURIComponent(search)) : (categoryId ? ('&category_id=' + categoryId) : '');
-    var url = _xtreamUrl('get_series', extra);
-
-    /* Cache hit: retorna imediatamente sem nova requisição */
-    if (cache[key]) {
-      if (onChunk) onChunk(cache[key]);
-      return Promise.resolve(cache[key]);
-    }
-
-    if (onChunk) {
-      return Auth._fetchJSONStream(url, function (chunk) {
-        onChunk(chunk.map(function (s) { s._type = 'series'; return s; }));
-      }, search ? 15000 : 3000).then(function (all) {
-        cache[key] = all.map(function (s) { s._type = 'series'; return s; });
-        return cache[key];
-      });
-    }
-    return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = (data || []).map(function (s) { s._type = 'series'; return s; });
-      return cache[key];
-    });
+  function getLiveStreams(catId, onChunk, search) {
+    return _fetchStreams('get_live_streams', 'live', catId, onChunk, search);
+  }
+  function getVodStreams(catId, onChunk, search) {
+    return _fetchStreams('get_vod_streams', 'movie', catId, onChunk, search);
+  }
+  function getSeriesList(catId, onChunk, search) {
+    return _fetchStreams('get_series', 'series', catId, onChunk, search);
   }
 
-  /* ── Info ────────────────────────────────────────────── */
-  function getVodInfo(vodId) { return Auth._fetchJSON(_xtreamUrl('get_vod_info', '&vod_id=' + vodId)); }
-  function getSeriesInfo(seriesId) { return Auth._fetchJSON(_xtreamUrl('get_series_info', '&series_id=' + seriesId)); }
+  /* ── Info detalhada ──────────────────────────────────── */
+  function getVodInfo(vodId) {
+    return Auth._fetchJSON(_xtreamUrl('get_vod_info', '&vod_id=' + vodId));
+  }
+  function getSeriesInfo(seriesId) {
+    return Auth._fetchJSON(_xtreamUrl('get_series_info', '&series_id=' + seriesId));
+  }
 
   /* ── URLs de Stream ──────────────────────────────────── */
-  function getLiveStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
+  function getLiveStreamUrl(streamId, ext) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('live', useIp !== false);
-    // O bypass de IP hardcoded (191.96.78.246) foi removido para usar o IP real do serverInfo
-    var url = base + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
-    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
+    return _base() + '/live/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'm3u8');
   }
-  function getVodStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
+  function getVodStreamUrl(streamId, ext) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('movie', useIp !== false);
-    // O bypass de IP hardcoded foi removido
-    var url = base + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
-    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
+    return _base() + '/movie/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mp4');
   }
-  function getEpisodeStreamUrl(streamId, ext, proxied, proxyIdx, useIp) {
+  function getEpisodeStreamUrl(streamId, ext) {
     var c = Auth.getCredentials(); if (!c) return '';
-    var base = _getEffectiveServer('series', useIp !== false);
-    // O bypass de IP hardcoded foi removido
-    var url = base + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
-    return proxied ? Auth.getProxiedUrl(url, true, proxyIdx) : url;
+    return _base() + '/series/' + c.username + '/' + c.password + '/' + streamId + '.' + (ext || 'mkv');
   }
 
   /* ── M3U ─────────────────────────────────────────────── */
@@ -224,14 +133,18 @@ var API = (function () {
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line) continue;
-      if (line.indexOf('#EXTINF') === 0) { cur = _parseExtInf(line); }
-      else if (cur && line[0] !== '#') {
-        cur.url = line; cur.type = _detectType(line, cur.group);
-        items.push(cur); cur = null;
+      if (line.indexOf('#EXTINF') === 0) {
+        cur = _parseExtInf(line);
+      } else if (cur && line[0] !== '#') {
+        cur.url = line;
+        cur._type = _detectType(line, cur.group);
+        items.push(cur);
+        cur = null;
       }
     }
     return items;
   }
+
   function _parseExtInf(line) {
     var item = {}, lc = line.lastIndexOf(','), m;
     item.name = lc !== -1 ? line.substring(lc + 1).trim() : 'Sem nome';
@@ -240,41 +153,45 @@ var API = (function () {
     item.group = item.category_name || 'Sem Categoria';
     return item;
   }
+
   function _detectType(url, group) {
     var g = (group || '').toLowerCase(), u = (url || '').toLowerCase();
     if (g.indexOf('movie') !== -1 || g.indexOf('filme') !== -1) return 'movie';
     if (g.indexOf('serie') !== -1 || g.indexOf('série') !== -1) return 'series';
-    if (u.indexOf('movie') !== -1) return 'movie';
-    if (u.indexOf('series') !== -1) return 'series';
+    if (u.indexOf('/movie/') !== -1) return 'movie';
+    if (u.indexOf('/series/') !== -1) return 'series';
     return 'live';
   }
+
   function loadM3U() {
-    if (cache.m3uData) return Promise.resolve(cache.m3uData);
+    if (cache.m3u) return Promise.resolve(cache.m3u);
     var c = Auth.getCredentials();
     if (!c || c.type !== 'm3u') return Promise.reject(new Error('Sem credenciais M3U'));
     return Auth._fetchText(c.url).then(function (text) {
-      cache.m3uData = _parseM3U(text); return cache.m3uData;
+      cache.m3u = _parseM3U(text);
+      return cache.m3u;
     });
   }
 
   /* ── Cache ───────────────────────────────────────────── */
-  function clearCache(onlyStreams) {
-    for (var k in cache) {
-      if (!cache.hasOwnProperty(k)) continue;
-      if (onlyStreams && k.indexOf('Categories') !== -1) continue;
-      cache[k] = null;
-      if (onlyStreams) delete cache[k];
-    }
+  function clearCache() {
+    cache = {};
   }
 
   return {
-    getLiveCategories: getLiveCategories, getLiveStreams: getLiveStreams,
-    getVodCategories: getVodCategories, getVodStreams: getVodStreams,
-    getVodInfo: getVodInfo,
-    getSeriesCategories: getSeriesCategories, getSeriesList: getSeriesList,
-    getSeriesInfo: getSeriesInfo,
-    getLiveStreamUrl: getLiveStreamUrl, getVodStreamUrl: getVodStreamUrl,
+    getLiveCategories:   getLiveCategories,
+    getVodCategories:    getVodCategories,
+    getSeriesCategories: getSeriesCategories,
+    getLiveStreams:      getLiveStreams,
+    getVodStreams:       getVodStreams,
+    getSeriesList:       getSeriesList,
+    getVodInfo:          getVodInfo,
+    getSeriesInfo:       getSeriesInfo,
+    getLiveStreamUrl:    getLiveStreamUrl,
+    getVodStreamUrl:     getVodStreamUrl,
     getEpisodeStreamUrl: getEpisodeStreamUrl,
-    parseM3U: _parseM3U, loadM3U: loadM3U, clearCache: clearCache
+    parseM3U:            _parseM3U,
+    loadM3U:             loadM3U,
+    clearCache:          clearCache
   };
 })();

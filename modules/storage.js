@@ -116,7 +116,10 @@ var Storage = (function () {
   function getSettings() {
     var defaults = { scale: 100, showImages: true };
     var saved = _read(KEYS.settings) || {};
-    return Object.assign({}, defaults, saved);
+    var out = {};
+    for (var k in defaults) if (defaults.hasOwnProperty(k)) out[k] = defaults[k];
+    for (var k2 in saved) if (saved.hasOwnProperty(k2)) out[k2] = saved[k2];
+    return out;
   }
 
   function setSetting(key, value) {

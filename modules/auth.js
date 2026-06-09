@@ -1,60 +1,53 @@
 /**
- * auth.js – REESCRITO para TV antiga (Panasonic)
- * Usa XMLHttpRequest em vez de fetch() + ReadableStream
+ * auth.js — Login Xtream Codes + M3U + camada de fetch via XHR
  *
- * CORREÇÕES v2:
- * 1. Timeout de _fetchJSONStream: 45s → 120s
- *    Listas grandes (séries, filmes) podem demorar 60-90s para chegar.
- * 2. Timeout de _fetchJSON: 20s → 30s (categorias podem ser lentas)
- * 3. Timeout de login: 20s → 30s
- * 4. getProxiedImageUrl: REMOVIDO proxy images.weserv.nl
- *    Tags <img> NÃO precisam de proxy CORS — o browser carrega qualquer URL.
- *    O proxy estava causando 30+ requisições extras que travavam a TV.
+ * Por que XHR e não fetch?
+ *  - Smart TVs antigas (Panasonic Viera, LG NetCast, Tizen 2.x) não suportam
+ *    fetch + ReadableStream. XHR é universalmente suportado.
+ *
+ * Memória:
+ *  - _MAX_ITEMS = 1500: corta listas gigantes para não estourar memória.
+ *    Listas IPTV típicas têm 500-2000 canais; 1500 já mostra "Todos" em
+ *    quase todos os casos. Em buscas o limite é menor ainda no api.js.
+ *  - _fetchJSONStream entrega em batches de 60 sem manter dois arrays
+ *    paralelos vivos. O array original `data` é GC'd assim que terminamos.
  */
 var Auth = (function () {
   'use strict';
 
-  var _credentials = null;
-  var _MAX_ITEMS = 3000;
+  /* Default usado se o usuário deixar o campo "Servidor" vazio.
+     Mesmo valor do api.js — atualize nos DOIS se trocar de provedor. */
+  var IPTV_DEFAULT_BASE = 'http://bmnew26.site';
 
-  /* ── XHR Base ─────────────────────────────────────────── */
+  var _credentials = null;
+
+  var _MAX_ITEMS = 1500; /* corte duro: 1500 itens por chamada */
+  var _BATCH     = 60;   /* itens por chunk entregue ao UI */
+
+  /* ── XHR base ─────────────────────────────────────────── */
   function _xhrText(url, timeout) {
     return new Promise(function (resolve, reject) {
       var done = false;
       var xhr = new XMLHttpRequest();
-      var ms = timeout || 120000; /* padrão 2 minutos */
+      var ms  = timeout || 60000;
 
       var timer = setTimeout(function () {
-        if (done) return;
-        done = true;
-        try { xhr.abort(); } catch (e) { }
+        if (done) return; done = true;
+        try { xhr.abort(); } catch (e) {}
         reject(new Error('timeout'));
       }, ms);
 
       xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) return;
-        if (done) return;
+        if (xhr.readyState !== 4 || done) return;
         done = true;
         clearTimeout(timer);
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(xhr.responseText || '');
         } else if (xhr.status === 0) {
-          reject(new Error('network error'));
+          reject(new Error('rede'));
         } else {
           reject(new Error('HTTP ' + xhr.status));
         }
-      };
-
-      xhr.onerror = function () {
-        if (done) return; done = true;
-        clearTimeout(timer);
-        reject(new Error('network error'));
-      };
-
-      xhr.onabort = function () {
-        if (done) return; done = true;
-        clearTimeout(timer);
-        reject(new Error('aborted'));
       };
 
       try {
@@ -66,158 +59,122 @@ var Auth = (function () {
     });
   }
 
-  /* ── Parse JSON ou Base64 (como o LIVEBOX usa) ────────── */
+  /* ── Parse JSON (com fallback base64 que alguns servidores usam) ── */
   function _parseResponse(text) {
     if (!text) return null;
     var t = text.trim();
     if (!t) return null;
 
-    /* Detecta base64: começa com '=' ou não tem [ nem { */
-    var looksB64 = t.charAt(0) === '=';
-    if (!looksB64 && t.charAt(0) !== '[' && t.charAt(0) !== '{') {
-      var sample = t.replace(/[\r\n]/g, '').substring(0, 80);
-      looksB64 = /^[A-Za-z0-9+\/=]+$/.test(sample);
-    }
-
-    if (looksB64) {
+    var first = t.charAt(0);
+    if (first !== '[' && first !== '{') {
+      /* Tenta base64 */
       try {
         var b64 = t.replace(/[\r\n\s]/g, '');
         if (b64.charAt(0) === '=') b64 = b64.substring(1);
-        return JSON.parse(atob(b64));
-      } catch (e) { /* não era base64, continua */ }
+        if (/^[A-Za-z0-9+\/=]+$/.test(b64)) {
+          return JSON.parse(atob(b64));
+        }
+      } catch (e) { /* segue para JSON normal */ }
     }
 
-    try {
-      return JSON.parse(t);
-    } catch (e) {
-      throw new Error('JSON inválido: ' + e.message);
-    }
+    return JSON.parse(t);
   }
 
   /* ── _fetchJSON: respostas pequenas (categorias, info) ── */
   function _fetchJSON(url, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
-    return _xhrText(url, timeout || 30000).then(function (text) { /* AUMENTADO: 20s → 30s */
-      return _parseResponse(text);
-    });
+    return _xhrText(url, timeout || 30000).then(_parseResponse);
   }
 
-  /* ── _fetchJSONStream: listas grandes (filmes, séries) ───
-     CORREÇÃO: timeout aumentado de 45s → 120s.
-     Listas com milhares de itens podem demorar 60-90s dependendo
-     da velocidade do servidor e do tamanho do payload.              */
+  /* ── _fetchJSONStream: listas grandes em chunks ──────────
+     Importante: NÃO mantém o array original vivo enquanto entrega
+     os chunks. Cortamos `data` para `_MAX_ITEMS` e deixamos o resto
+     ir para o GC; depois entregamos em batches sem clonar nada.    */
   function _fetchJSONStream(url, onChunk, limit, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
 
-    return _xhrText(url, timeout || 120000).then(function (text) { /* AUMENTADO: 45s → 120s */
+    return _xhrText(url, timeout || 90000).then(function (text) {
       var data;
       try { data = _parseResponse(text); }
-      catch (e) { return Promise.reject(e); }
+      catch (e) { return Promise.reject(new Error('JSON inválido')); }
 
       if (!Array.isArray(data)) {
         if (onChunk) onChunk([]);
         return data || [];
       }
 
-      var total = Math.min(data.length, limit || _MAX_ITEMS);
-      if (!onChunk) return data.slice(0, total);
+      /* Corta o limite ANTES de entregar — libera memória do resto */
+      var cap = Math.min(data.length, limit || _MAX_ITEMS);
+      if (cap < data.length) data.length = cap; /* in-place trim */
 
-      var BATCH = 50;
-      var idx = 0;
+      if (!onChunk) return data;
 
       return new Promise(function (resolve) {
-        function deliverNext() {
-          if (idx >= total) { resolve(data.slice(0, total)); return; }
-          var end = Math.min(idx + BATCH, total);
+        var idx = 0;
+        function next() {
+          if (idx >= data.length) { resolve(data); return; }
+          var end = Math.min(idx + _BATCH, data.length);
           var batch = data.slice(idx, end);
           idx = end;
-          if (batch.length > 0) {
-            try { onChunk(batch); } catch (e) { }
-          }
-          setTimeout(deliverNext, 0);
+          try { onChunk(batch); } catch (e) {}
+          /* setTimeout 0 cede CPU pro browser pintar antes do próximo lote */
+          setTimeout(next, 0);
         }
-
-        if (total > 0) {
-          var first = data.slice(0, Math.min(BATCH, total));
-          idx = first.length;
-          try { onChunk(first); } catch (e) { }
-          if (idx < total) setTimeout(deliverNext, 0);
-          else resolve(data.slice(0, total));
-        } else {
-          resolve([]);
-        }
+        next();
       });
     });
   }
 
-  /* ── _fetchText: playlists M3U ────────────────────────── */
+  /* ── _fetchText: M3U playlists ────────────────────────── */
   function _fetchText(url, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
-    return _xhrText(url, timeout || 120000); /* AUMENTADO: 60s → 120s */
-  }
-
-  /* ── Proxy de imagens ─────────────────────────────────── */
-  /*
-   * CORREÇÃO: getProxiedImageUrl agora retorna a URL ORIGINAL sem proxy.
-   *
-   * Por quê removemos o proxy images.weserv.nl?
-   * ─────────────────────────────────────────────
-   * Tags <img src="..."> NÃO têm restrição de CORS no browser.
-   * O proxy só seria necessário para chamadas XHR/fetch de imagens,
-   * o que não fazemos — usamos apenas <img>.
-   *
-   * Na prática, o proxy estava causando 30-50 requisições extras para
-   * images.weserv.nl que falhavam na TV (timeout ou bloqueio de rede),
-   * gerando uma "tempestade" de conexões que travava o browser da TV.
-   */
-  function getProxiedImageUrl(url) {
-    return url; /* Retorna direto — sem proxy para imagens */
-  }
-
-  function getProxiedUrl(url, isStream, idx) {
-    if (!url || isStream) return url;
-    var proxies = ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
-    var i = Math.max(0, Math.min(idx || 0, proxies.length - 1));
-    return proxies[i] + encodeURIComponent(url);
+    return _xhrText(url, timeout || 90000);
   }
 
   /* ── Login Xtream ─────────────────────────────────────── */
   function loginXtream(server, username, password) {
+    /* Se o usuário deixar o campo vazio, usa o default.
+       Se digitar algo, usa o que foi digitado (permite testar IPs). */
     server = (server || '').trim();
+    if (!server) server = IPTV_DEFAULT_BASE;
     if (!/^https?:\/\//i.test(server)) server = 'http://' + server;
     server = server.replace(/\/+$/, '');
 
-    var url = server + '/player_api.php?username=' + encodeURIComponent(username) +
+    var base = server;
+
+    var url = base + '/player_api.php' +
+      '?username=' + encodeURIComponent(username) +
       '&password=' + encodeURIComponent(password);
 
-    return _fetchJSON(url, 30000).then(function (data) { /* AUMENTADO: 20s → 30s */
+    return _fetchJSON(url, 25000).then(function (data) {
       if (!data) return { success: false, error: 'Resposta vazia' };
-      if (data.user_info && data.user_info.auth === 0)
+      if (data.user_info && data.user_info.auth === 0) {
         return { success: false, error: 'Usuário ou senha incorretos' };
-
+      }
       _credentials = {
-        type: 'xtream', server: server,
-        username: username, password: password,
-        serverInfo: data.server_info || null,
-        userInfo: data.user_info || null
+        type: 'xtream',
+        server: server,
+        username: username,
+        password: password
       };
-      try { Storage.saveAuth(_credentials); } catch (e) { }
-      return { success: true, data: data };
+      try { Storage.saveAuth(_credentials); } catch (e) {}
+      return { success: true };
     }).catch(function (err) {
       var msg = (err && err.message) || 'erro';
-      if (msg.indexOf('timeout') !== -1) msg = 'Servidor não respondeu a tempo';
-      else if (msg.indexOf('network') !== -1) msg = 'Servidor inacessível';
+      if (msg === 'timeout') msg = 'Servidor não respondeu';
+      else if (msg === 'rede') msg = 'Servidor inacessível';
       return { success: false, error: msg };
     });
   }
 
   /* ── Login M3U ────────────────────────────────────────── */
   function loginM3U(url) {
-    return _fetchText(url, 120000).then(function (text) { /* AUMENTADO: 30s → 120s */
-      if (!text || text.indexOf('#EXTM3U') === -1)
+    return _fetchText(url, 60000).then(function (text) {
+      if (!text || text.indexOf('#EXTM3U') === -1) {
         return { success: false, error: 'Arquivo M3U inválido' };
+      }
       _credentials = { type: 'm3u', url: url };
-      try { Storage.saveAuth(_credentials); } catch (e) { }
+      try { Storage.saveAuth(_credentials); } catch (e) {}
       return { success: true };
     }).catch(function (err) {
       return { success: false, error: (err && err.message) || 'Erro ao carregar M3U' };
@@ -229,20 +186,45 @@ var Auth = (function () {
     try {
       var saved = Storage.getAuth();
       if (!saved) return false;
+
+      /* Servidores antigos que não respondem mais — força para o default.
+         Isso é importante: sem isso, uma sessão antiga deixa o app sem
+         carregar nenhuma lista e o usuário precisa "Limpar Tudo" no menu. */
+      if (saved.type === 'xtream') {
+        var s = (saved.server || '').toLowerCase();
+        var STALE_SERVERS = [
+          'http://191.96.78.246',
+          'https://streams4k.xyz',
+          'http://streams4k.xyz',
+          'https://godisfaithful.shop',
+          'http://godisfaithful.shop'
+        ];
+        for (var i = 0; i < STALE_SERVERS.length; i++) {
+          if (s.indexOf(STALE_SERVERS[i]) === 0) {
+            saved.server = IPTV_DEFAULT_BASE;
+            delete saved.serverInfo;
+            try { Storage.saveAuth(saved); } catch (e) {}
+            break;
+          }
+        }
+      }
+
       _credentials = saved;
       return true;
     } catch (e) { return false; }
   }
 
   function getCredentials() { return _credentials; }
-  function logout() { _credentials = null; }
+  function logout()         { _credentials = null; }
 
   return {
-    loginXtream: loginXtream, loginM3U: loginM3U,
-    restoreSession: restoreSession, getCredentials: getCredentials,
-    logout: logout,
-    _fetchJSON: _fetchJSON, _fetchJSONStream: _fetchJSONStream,
-    _fetchText: _fetchText,
-    getProxiedUrl: getProxiedUrl, getProxiedImageUrl: getProxiedImageUrl
+    loginXtream:     loginXtream,
+    loginM3U:        loginM3U,
+    restoreSession:  restoreSession,
+    getCredentials:  getCredentials,
+    logout:          logout,
+    _fetchJSON:      _fetchJSON,
+    _fetchJSONStream: _fetchJSONStream,
+    _fetchText:      _fetchText
   };
 })();
