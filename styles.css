@@ -65,14 +65,17 @@ input {
   width: 100%;
 }
 
-/* ─── Telas ─────────────────────────────────── */
+/* ─── Telas ───────────────────────────────────
+   IMPORTANTE: usamos !important em .hidden porque seletores
+   #screen-* mais abaixo (display: flex) têm especificidade maior
+   e travariam a tela visível mesmo depois de remover .active.    */
 .screen {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   display: none;
 }
 .screen.active { display: block; }
-.screen.hidden { display: none; }
+.screen.hidden { display: none !important; }
 
 /* ─── Focus universal ──────────────────────────
    2px de borda branca + 2px de glow vermelho.
