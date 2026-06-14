@@ -158,7 +158,15 @@
         <span>Voltar</span>
       </button>
       <h1 id="content-title-top" class="content-title-top">Conteúdo</h1>
-      <input id="topbar-search-input" class="topbar-search-input hidden" type="text" placeholder="Buscar título..." tabindex="0" autocomplete="off" spellcheck="false">
+      <div id="topbar-search-box" class="topbar-search-box hidden">
+        <input id="topbar-search-input" class="topbar-search-input" type="text" placeholder="Buscar título..." tabindex="0" autocomplete="off" spellcheck="false">
+        <button id="topbar-search-go" class="topbar-search-go" type="button" tabindex="0" aria-label="Pesquisar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
     </nav>
 
     <div class="main-body-wrapper">

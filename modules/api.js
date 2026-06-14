@@ -57,14 +57,20 @@ var API = (function () {
   function getVodCategories()    { return _fetchCategories('get_vod_categories',    'cats_vod'); }
   function getSeriesCategories() { return _fetchCategories('get_series_categories', 'cats_series'); }
 
-  /* ── Streams ─────────────────────────────────────────── */
+  /* ── Streams ───────────────────────────────────────────
+     Busca: o Xtream Codes não tem busca server-side confiável
+     — alguns servidores ignoram &search=, outros retornam vazio.
+     Quando o app precisa buscar, pegamos a lista completa
+     (sem category_id) e o app.js filtra os nomes localmente.
+     Cache: a chave para busca é typeTag + '_all', então a
+     mesma lista completa serve para qualquer termo pesquisado. */
   function _fetchStreams(action, typeTag, categoryId, onChunk, search) {
     var key = search
-      ? (typeTag + '_search_' + search)
+      ? (typeTag + '_all')
       : (typeTag + '_' + (categoryId || 'all'));
 
     var extra = search
-      ? '&search=' + encodeURIComponent(search)
+      ? ''
       : (categoryId ? '&category_id=' + categoryId : '');
 
     var url = _xtreamUrl(action, extra);

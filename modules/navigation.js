@@ -46,9 +46,21 @@ var Navigation = (function () {
 
     if (isInput) {
       if (code === 8) return;                    // backspace — deixa o input tratar
-      if (code === 37 || code === 39) return;    // setas esq/dir — deixa o input tratar
+      /* Input de busca: seta DIREITA escapa pro botão "Pesquisar"
+         (em TVs antigas onde Enter no input não funciona, esse é o
+         caminho garantido pra acionar a busca). */
+      if (focused.id === 'topbar-search-input' && code === 39) {
+        var goBtn = document.getElementById('topbar-search-go');
+        if (goBtn) {
+          e.preventDefault();
+          goBtn.focus();
+          return;
+        }
+      }
+      if (code === 37 || code === 39) return;    // demais setas esq/dir — input trata
       if (code === 13 || code === 195) {
-        if (focused.id === 'header-search-input') return; // app.js trata
+        /* app.js trata Enter no input de busca via capture phase */
+        if (focused.id === 'topbar-search-input') return;
         e.preventDefault();
         focused.blur();
         return;
@@ -215,6 +227,14 @@ var Navigation = (function () {
 
   /* ══════════════════════════════════════
      Score direcional
+
+     Para setas L/R, dá um bônus forte pra itens com OVERLAP VERTICAL
+     (mesma linha). Sem isso, um tile diagonal mais próximo "rouba"
+     o foco de um tile da mesma linha — ex: TV ao Vivo →→ ia pra
+     Favoritos em vez de Filmes.
+     Mesma lógica espelhada pra setas U/D com OVERLAP HORIZONTAL.
+     OFF_AXIS = penalidade somada quando não há overlap no eixo
+     perpendicular. 1000 garante que itens alinhados sempre ganhem.
   ══════════════════════════════════════ */
   function _calcDirectionScore(from, to, direction) {
     var fromCX = from.left + from.width / 2;
@@ -224,20 +244,28 @@ var Navigation = (function () {
     var dx = toCX - fromCX;
     var dy = toCY - fromCY;
     var tol = 12;
+    var OFF_AXIS = 1000;
+
+    /* overlap vertical (eixo Y) — itens "na mesma linha" */
+    var vOverlap = Math.min(from.top + from.height, to.top + to.height) -
+                   Math.max(from.top, to.top);
+    /* overlap horizontal (eixo X) — itens "na mesma coluna" */
+    var hOverlap = Math.min(from.left + from.width, to.left + to.width) -
+                   Math.max(from.left, to.left);
 
     switch (direction) {
       case 'up':
         if (dy > -tol) return null;
-        return Math.abs(dy) + Math.abs(dx) * 0.5;
+        return Math.abs(dy) + (hOverlap > 0 ? 0 : OFF_AXIS) + Math.abs(dx) * 0.5;
       case 'down':
         if (dy < tol) return null;
-        return Math.abs(dy) + Math.abs(dx) * 0.5;
+        return Math.abs(dy) + (hOverlap > 0 ? 0 : OFF_AXIS) + Math.abs(dx) * 0.5;
       case 'left':
         if (dx > -tol) return null;
-        return Math.abs(dx) + Math.abs(dy) * 0.5;
+        return Math.abs(dx) + (vOverlap > 0 ? 0 : OFF_AXIS) + Math.abs(dy) * 0.5;
       case 'right':
         if (dx < tol) return null;
-        return Math.abs(dx) + Math.abs(dy) * 0.5;
+        return Math.abs(dx) + (vOverlap > 0 ? 0 : OFF_AXIS) + Math.abs(dy) * 0.5;
     }
     return null;
   }

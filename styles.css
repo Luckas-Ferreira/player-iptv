@@ -461,12 +461,18 @@ input:focus {
   margin-left: 14px;
   line-height: normal;
 }
-/* Input de busca embutido na topbar (visível apenas em Filmes/Séries) */
-.topbar-search-input {
+/* Busca embutida na topbar (visível apenas em Filmes/Séries) */
+.topbar-search-box {
   display: none;
   float: right;
-  width: 320px;
-  margin: 10px 0;
+  margin: 8px 0;
+  font-size: 0; /* zera espaço entre os inline-blocks filhos */
+  vertical-align: middle;
+}
+.topbar-search-box.visible { display: inline-block; }
+.topbar-search-input {
+  display: inline-block;
+  width: 260px;
   padding: 6px 12px;
   font-size: 14px;
   background: var(--bg-input);
@@ -475,7 +481,6 @@ input:focus {
   border-radius: 4px;
   vertical-align: middle;
 }
-.topbar-search-input.visible { display: inline-block; }
 .topbar-search-input::-webkit-input-placeholder { color: var(--text-3); }
 .topbar-search-input:-ms-input-placeholder { color: var(--text-3); }
 .topbar-search-input::placeholder { color: var(--text-3); }
@@ -483,6 +488,24 @@ input:focus {
   border-color: var(--accent);
   background-color: var(--bg-raised);
 }
+.topbar-search-go {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  margin-left: 6px;
+  padding: 0;
+  vertical-align: middle;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  text-align: center;
+  line-height: 34px; /* compensa border 3px */
+}
+.topbar-search-go svg {
+  width: 18px; height: 18px;
+  vertical-align: middle;
+}
+.topbar-search-go:focus { border-color: #fff; }
 
 /* Wrapper main */
 .main-body-wrapper {

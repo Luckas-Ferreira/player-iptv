@@ -226,12 +226,13 @@ var App = (function () {
 
     /* Busca só faz sentido em Filmes/Séries */
     var showSearch = (tabName === 'movies' || tabName === 'series');
+    var searchBox = document.getElementById('topbar-search-box');
     var searchInput = document.getElementById('topbar-search-input');
-    if (searchInput) {
-      if (showSearch) searchInput.classList.add('visible');
-      else            searchInput.classList.remove('visible');
-      searchInput.value = '';
+    if (searchBox) {
+      if (showSearch) searchBox.classList.add('visible');
+      else            searchBox.classList.remove('visible');
     }
+    if (searchInput) searchInput.value = '';
 
     /* Favoritos e Watchlist não usam sidebar de categorias */
     var sidebar = document.querySelector('#screen-main .category-sidebar');
@@ -926,18 +927,34 @@ var App = (function () {
   ══════════════════════════════════════ */
   function _bindSearchEvents() {
     var input = document.getElementById('topbar-search-input');
+    var goBtn = document.getElementById('topbar-search-go');
     if (!input) return;
 
     /* Capture phase: Enter dispara busca antes do navigation.js
-       processar a tecla. */
+       processar a tecla. Algumas TVs antigas têm capture quebrado,
+       então o botão lateral é a garantia. */
     input.addEventListener('keydown', function (e) {
       var code = e.keyCode || e.which;
-      if (code === 13 || code === 195) {
+      if (code === 13 || code === 195 || code === 32) {
         e.preventDefault();
         e.stopPropagation();
         _handleSearch();
       }
     }, true);
+
+    if (goBtn) {
+      goBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        _handleSearch();
+      });
+      goBtn.addEventListener('keydown', function (e) {
+        var code = e.keyCode || e.which;
+        if (code === 13 || code === 195 || code === 32) {
+          e.preventDefault();
+          _handleSearch();
+        }
+      });
+    }
   }
 
   function _handleSearch() {
