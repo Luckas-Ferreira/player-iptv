@@ -340,7 +340,10 @@ var App = (function () {
     Renderer.setEmpty(false);
     Renderer.Pager.init(grid, { onPlay: _playItem, onFavorite: _onFavoriteToggle });
 
-    var limit = search ? 800 : MAX_ITEMS_PER_CATEGORY;
+    /* Em busca subimos o teto para 15000: provedores BR retornam
+       milhares de filmes quando passamos &search= e queremos pegar
+       todos os matches, não só os primeiros 800. */
+    var limit = search ? 15000 : MAX_ITEMS_PER_CATEGORY;
     var normQuery = search ? _norm(search) : '';
 
     getStreams(categoryId, function (chunk) {

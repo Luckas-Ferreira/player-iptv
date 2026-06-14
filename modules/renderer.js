@@ -4,30 +4,49 @@
  * OTIMIZAÇÕES PARA TV ANTIGA:
  *  • Pager: máx 80 cards no DOM ao mesmo tempo (com spacer compensando os removidos)
  *  • CHUNK 8: 8 cards por render — TV antiga não trava processando 30 nós de uma vez
- *  • IMGMAX 4: até 4 imagens em paralelo (o navegador já limita a ~6 conexões/host;
- *    com 1, a grade de filmes/séries demorava minutos para preencher)
- *  • Sem retry com proxy de imagem (causava avalanche de conexões)
- *  • Sem long-press (favorito via tela de detalhe / botão visível no card)
- *  • Cards mantêm referência mínima ao item (closures menores)
+ *  • IMGMAX 4: até 4 imagens em paralelo (o navegador já limita a ~6 conexões/host)
+ *  • IntersectionObserver lazy-load + retry via wsrv.nl quando a TV não negocia TLS moderno
+ *  • Em falha definitiva, mostra placeholder rico em vez de sumir com o card
  */
 var Renderer = (function () {
   'use strict';
 
   /* ── CONFIG ─────────────────────────────────────────────── */
-  var IMGMAX       = 4;
-  var IMG_DELAY    = 0;
-  var IMG_TIMEOUT  = 15000;   /* TV antiga + rede ruim: timeout maior */
-  var IMG_RETRY_MS = 1200;    /* 1 retry após esse delay quando falhar */
+  var IMGMAX          = 4;
+  var IMG_DELAY       = 100;    /* ms entre tentativas de processar fila */
+  var IMG_TIMEOUT     = 10000;  /* 10s — evita 1 imagem travar toda a fila */
+  var IMG_RETRY_DELAY = 800;    /* ms antes do retry via proxy wsrv.nl */
 
   /* ── FILA DE IMAGENS ───────────────────────────────────── */
-  var imgQueue    = [];
-  var imgLoading  = 0;
-  var imgTimer    = null;
-  /* IntersectionObserver foi removido — em várias TVs antigas o
-     objeto existe mas o callback nunca dispara, resultando em
-     imagens que nunca carregam. A fila simples carrega tudo
-     assim que o card é adicionado ao DOM, com no máximo IMGMAX
-     em paralelo, o que já é suficiente pra não sobrecarregar. */
+  var imgQueue      = [];
+  var imgLoading    = 0;
+  var imgTimer      = null;
+  var globalObserver = null;
+  var imgTimeouts   = {};
+  var imgIdCounter  = 0;
+
+  function _getObserver() {
+    if (globalObserver) return globalObserver;
+    if (!('IntersectionObserver' in window)) return null;
+    try {
+      globalObserver = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (!entries[i].isIntersecting) continue;
+          try { globalObserver.unobserve(entries[i].target); } catch (e) {}
+          var el2 = entries[i].target;
+          var s = el2.getAttribute('data-src');
+          if (s && el2.getAttribute('data-loaded') !== '1') {
+            imgQueue.push({ el: el2, src: s, retry: 0 });
+            _scheduleProcess();
+          }
+        }
+      }, { rootMargin: '150px 0px', threshold: 0 });
+    } catch (e) {
+      globalObserver = null;
+      return null;
+    }
+    return globalObserver;
+  }
 
   function _scheduleProcess() {
     if (imgTimer) return;
@@ -43,75 +62,94 @@ var Renderer = (function () {
       if (!entry.el || !entry.el.parentNode) continue;
       if (entry.el.getAttribute('data-loaded') === '1') continue;
       imgLoading++;
-      _loadOne(entry.el, entry.src);
+      _loadOne(entry.el, entry.src, entry.retry || 0);
     }
   }
 
   /*
-   * Carrega direto no <img> da página (sem new Image() de preload).
-   * O preload duplicava a request — em rede de TV antiga isso dobrava
-   * a chance de falha por timeout/conexão lenta. Carregando direto:
-   *  • 1 request só
-   *  • browser usa cache nativo se a mesma URL já foi puxada
-   *  • em falha, retry 1x depois de IMG_RETRY_MS antes de desistir
-   *  • em falha final, NÃO esconde — deixa o fundo placeholder visível
+   * Carrega via new Image() para isolar do <img> da página.
+   * Em retry, troca pelo proxy wsrv.nl — TVs antigas (Panasonic Viera,
+   * LG NetCast) falham em servidores com TLS moderno, e o wsrv.nl
+   * serve sobre HTTP. Em falha final, troca o <img> por placeholder rico.
    */
-  function _loadOne(imgEl, src) {
-    var done  = false;
-    var tried = 0;
+  function _loadOne(imgEl, src, retryCount) {
+    if (!src) { _replaceWithPlaceholder(imgEl); _finish(); return; }
 
-    function attempt() {
-      tried++;
-      if (!imgEl || !imgEl.parentNode) { _finish(false); return; }
+    var _imgId = ++imgIdCounter;
+    var _done = false;
+    var actualSrc = String(src).trim();
 
-      var localTimer = setTimeout(function () { onErr(); }, IMG_TIMEOUT);
-
-      function clear() {
-        clearTimeout(localTimer);
-        imgEl.onload = null;
-        imgEl.onerror = null;
-      }
-      function onOk() {
-        if (done) return;
-        clear();
-        imgEl.setAttribute('data-loaded', '1');
-        _finish(true);
-      }
-      function onErr() {
-        if (done) return;
-        clear();
-        if (tried < 2) {
-          /* limpa o src pra não deixar o ícone broken-image e tenta de novo */
-          try { imgEl.removeAttribute('src'); } catch (e) {}
-          setTimeout(attempt, IMG_RETRY_MS);
-        } else {
-          /* desiste — remove src pra não mostrar broken-image, mas
-             mantém o elemento visível (fundo placeholder bg-raised) */
-          try { imgEl.removeAttribute('src'); } catch (e) {}
-          _finish(false);
-        }
-      }
-
-      imgEl.onload  = onOk;
-      imgEl.onerror = onErr;
-      imgEl.src = src;
+    if (retryCount >= 1) {
+      actualSrc = 'http://wsrv.nl/?url=' + encodeURIComponent(actualSrc);
     }
 
-    function _finish() {
-      if (done) return;
-      done = true;
+    var _tmp = new Image();
+
+    function finish(success) {
+      if (_done) return;
+      _done = true;
+      if (imgTimeouts[_imgId]) { clearTimeout(imgTimeouts[_imgId]); delete imgTimeouts[_imgId]; }
+      _tmp.onload = _tmp.onerror = null;
       imgLoading = Math.max(0, imgLoading - 1);
+
+      if (success && imgEl && imgEl.parentNode) {
+        imgEl.src = actualSrc;
+        imgEl.setAttribute('data-loaded', '1');
+        imgEl.style.display = '';
+      } else if (retryCount < 1 && imgEl && imgEl.parentNode) {
+        setTimeout(function () {
+          if (!imgEl.parentNode) return;
+          imgQueue.push({ el: imgEl, src: src, retry: retryCount + 1 });
+          _scheduleProcess();
+        }, IMG_RETRY_DELAY);
+      } else {
+        _replaceWithPlaceholder(imgEl);
+      }
       _scheduleProcess();
     }
 
-    attempt();
+    function _finish() { finish(false); }
+
+    _tmp.onload = function () { finish(true); };
+    _tmp.onerror = function () { finish(false); };
+
+    imgTimeouts[_imgId] = setTimeout(function () {
+      if (_done) return;
+      try { _tmp.src = ''; } catch (e) {}
+      finish(false);
+    }, IMG_TIMEOUT);
+
+    _tmp.src = actualSrc;
+  }
+
+  /**
+   * Substitui <img> quebrada por placeholder visual.
+   * Em vez de sumir, mostra ícone + nome — card continua focável.
+   */
+  function _replaceWithPlaceholder(imgEl) {
+    if (!imgEl || !imgEl.parentNode) return;
+    var card = imgEl.parentNode;
+    var name = imgEl.getAttribute('alt') || '';
+    var type = 'movie';
+    if (card.className && card.className.indexOf('card-live') !== -1) type = 'live';
+    else if (card.className && card.className.indexOf('card-series') !== -1) type = 'series';
+    var ph = createPlaceholder(type, name);
+    try { card.replaceChild(ph, imgEl); } catch (e) {
+      imgEl.style.display = 'none';
+    }
   }
 
   function lazyLoadImg(imgEl, src) {
     if (!imgEl || !src) return;
     imgEl.setAttribute('data-src', src);
-    imgQueue.push({ el: imgEl, src: src });
-    _scheduleProcess();
+    var obs = _getObserver();
+    if (obs) {
+      obs.observe(imgEl);
+    } else {
+      /* Sem IntersectionObserver — enfileira direto */
+      imgQueue.push({ el: imgEl, src: src, retry: 0 });
+      _scheduleProcess();
+    }
   }
 
   /* ── CARD ──────────────────────────────────────────────── */
@@ -464,8 +502,20 @@ var Renderer = (function () {
 
   function destroyVirtualScroll() {
     Pager.destroy();
-    imgQueue   = [];
-    imgLoading = 0;
+    /* Para de observar imagens pendentes pra não disparar carregamento de
+       categoria antiga ao rolar a nova. */
+    if (globalObserver) {
+      var imgs = document.querySelectorAll('img[data-src]:not([data-loaded="1"])');
+      for (var i = 0; i < imgs.length; i++) {
+        try { globalObserver.unobserve(imgs[i]); } catch (e) {}
+      }
+    }
+    for (var tid in imgTimeouts) {
+      if (imgTimeouts.hasOwnProperty(tid)) clearTimeout(imgTimeouts[tid]);
+    }
+    imgTimeouts = {};
+    imgQueue    = [];
+    imgLoading  = 0;
     if (imgTimer) { clearTimeout(imgTimer); imgTimer = null; }
   }
 

@@ -91,7 +91,10 @@ var API = (function () {
       return arr;
     }
 
-    var limit = search ? 5000 : 1500;
+    /* Busca precisa de teto alto: alguns provedores ignoram &search=
+       e retornam a lista inteira; o filtro client-side no app.js faz o
+       resto. Navegação por categoria fica em 3000. */
+    var limit = search ? 15000 : 3000;
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
         onChunk(tag(chunk));

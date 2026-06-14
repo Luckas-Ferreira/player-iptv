@@ -6,9 +6,10 @@
  *    fetch + ReadableStream. XHR é universalmente suportado.
  *
  * Memória:
- *  - _MAX_ITEMS = 1500: corta listas gigantes para não estourar memória.
- *    Listas IPTV típicas têm 500-2000 canais; 1500 já mostra "Todos" em
- *    quase todos os casos. Em buscas o limite é menor ainda no api.js.
+ *  - _MAX_ITEMS = 3000: corta listas gigantes para não estourar memória,
+ *    mas alto o suficiente pra buscas trazerem muitos resultados quando
+ *    o provedor não respeita &search=. api.js passa um teto explícito
+ *    (15000 em busca) que sobrescreve este default.
  *  - _fetchJSONStream entrega em batches de 60 sem manter dois arrays
  *    paralelos vivos. O array original `data` é GC'd assim que terminamos.
  */
@@ -21,7 +22,7 @@ var Auth = (function () {
 
   var _credentials = null;
 
-  var _MAX_ITEMS = 1500; /* corte duro: 1500 itens por chamada */
+  var _MAX_ITEMS = 3000; /* default; api.js sobrescreve em busca (15000) */
   var _BATCH     = 60;   /* itens por chunk entregue ao UI */
 
   /* ── XHR base ─────────────────────────────────────────── */
@@ -29,7 +30,9 @@ var Auth = (function () {
     return new Promise(function (resolve, reject) {
       var done = false;
       var xhr = new XMLHttpRequest();
-      var ms  = timeout || 60000;
+      /* Default 2 min — listas grandes (15k itens de busca) podem
+         demorar 60-90s em TV antiga + provedor lento. */
+      var ms  = timeout || 120000;
 
       var timer = setTimeout(function () {
         if (done) return; done = true;
@@ -93,7 +96,7 @@ var Auth = (function () {
   function _fetchJSONStream(url, onChunk, limit, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
 
-    return _xhrText(url, timeout || 90000).then(function (text) {
+    return _xhrText(url, timeout || 120000).then(function (text) {
       var data;
       try { data = _parseResponse(text); }
       catch (e) { return Promise.reject(new Error('JSON inválido')); }
@@ -128,7 +131,7 @@ var Auth = (function () {
   /* ── _fetchText: M3U playlists ────────────────────────── */
   function _fetchText(url, timeout) {
     if (!url) return Promise.reject(new Error('URL inválida'));
-    return _xhrText(url, timeout || 90000);
+    return _xhrText(url, timeout || 120000);
   }
 
   /* ── Login Xtream ─────────────────────────────────────── */
