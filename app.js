@@ -1,9 +1,11 @@
 /**
- * app.js — Orquestrador principal (estilo PlaySim simplificado)
+ * app.js — Orquestrador principal (estilo PlaySim)
  *
- * Layout: topbar + sidebar de categorias + grid de cards.
+ * Fluxo:
+ *   login → home (5 tiles) → seção (uma de cada vez) → detalhe → player
+ *                    └→ settings
+ *
  * Memória: limites baixos no Pager (renderer.js) + cache simples na API.
- * Bug histórico corrigido: _handleSearch estava definida duas vezes.
  */
 var App = (function () {
   'use strict';
@@ -14,7 +16,7 @@ var App = (function () {
 
   var _state = {
     mode: 'xtream',          /* 'xtream' | 'm3u' */
-    activeTab: 'live',
+    activeTab: 'live',       /* live | movies | series | favorites | watchlist */
     activeCategory: '',
     isSearching: false,
     allItems: [],
@@ -25,6 +27,15 @@ var App = (function () {
 
   var _catLoadTimer = null;
 
+  var TAB_LABELS = {
+    live:       'TV ao Vivo',
+    movies:     'Filmes',
+    series:     'Séries',
+    favorites:  'Favoritos',
+    watchlist:  'Continuar Assistindo',
+    settings:   'Configurações'
+  };
+
   /* ══════════════════════════════════════
      INIT
   ══════════════════════════════════════ */
@@ -32,7 +43,8 @@ var App = (function () {
     Player.init();
     Navigation.init();
     _bindLoginEvents();
-    _bindMainEvents();
+    _bindHomeEvents();
+    _bindContentEvents();
     _bindDetailEvents();
     _bindSettingsEvents();
     _bindSearchEvents();
@@ -40,7 +52,7 @@ var App = (function () {
     if (Auth.restoreSession()) {
       var c = Auth.getCredentials();
       _state.mode = (c && c.type) || 'xtream';
-      _enterMain();
+      _enterHome();
       return;
     }
 
@@ -119,7 +131,7 @@ var App = (function () {
       if (r.success) {
         _state.mode = isX ? 'xtream' : 'm3u';
         _setLoginStatus('Conectado!', 'success');
-        setTimeout(_enterMain, 400);
+        setTimeout(_enterHome, 400);
       } else {
         _setLoginStatus(r.error || 'Falha na conexão', 'error');
       }
@@ -137,50 +149,56 @@ var App = (function () {
   }
 
   /* ══════════════════════════════════════
-     TELA PRINCIPAL
+     HOME
   ══════════════════════════════════════ */
-  function _enterMain() {
-    _showScreen('main');
-    Navigation.pushHistory('main');
+  function _enterHome() {
+    Renderer.destroyVirtualScroll();
+    _showScreen('home');
+    Navigation.pushHistory('home');
 
-    var nameEl = document.getElementById('user-display-name');
+    var nameEl = document.getElementById('home-user-name');
     if (nameEl) {
       var c = Auth.getCredentials() || {};
       nameEl.textContent = c.username || 'Conectado';
     }
 
-    _activateTab('live');
-    Navigation.focusFirst('main');
+    Navigation.focusFirst('home');
   }
 
-  function _bindMainEvents() {
-    var items = document.querySelectorAll('.menu-item');
-    for (var i = 0; i < items.length; i++) {
-      (function (item) {
-        item.addEventListener('click', function () { _activateTab(item.dataset.tab); });
-        item.addEventListener('keydown', function (e) {
-          if (e.keyCode === 13) { e.preventDefault(); _activateTab(item.dataset.tab); }
+  function _bindHomeEvents() {
+    var tiles = document.querySelectorAll('#screen-home .home-tile');
+    for (var i = 0; i < tiles.length; i++) {
+      (function (tile) {
+        var tab = tile.dataset.tab;
+        tile.addEventListener('click', function () { _enterSection(tab); });
+        tile.addEventListener('keydown', function (e) {
+          if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
+            e.preventDefault();
+            _enterSection(tab);
+          }
         });
-      })(items[i]);
+      })(tiles[i]);
     }
 
-    var btnLogout = document.getElementById('btn-logout');
+    var btnSettings = document.getElementById('home-settings');
+    if (btnSettings) btnSettings.addEventListener('click', _enterSettings);
+
+    var btnLogout = document.getElementById('home-logout');
     if (btnLogout) btnLogout.addEventListener('click', _handleLogout);
   }
 
-  function _activateTab(tabName) {
+  /* ══════════════════════════════════════
+     SEÇÃO (TV/Filmes/Séries/Favoritos/Watchlist)
+  ══════════════════════════════════════ */
+  function _enterSection(tabName) {
     Renderer.destroyVirtualScroll();
 
     _state.activeTab = tabName;
     _state.activeCategory = '';
     _state.isSearching = false;
 
-    /* Marca aba ativa no menu */
-    var items = document.querySelectorAll('.menu-item');
-    for (var i = 0; i < items.length; i++) {
-      if (items[i].dataset.tab === tabName) items[i].classList.add('active');
-      else                                  items[i].classList.remove('active');
-    }
+    _showScreen('main');
+    Navigation.pushHistory('main');
 
     /* Limpa containers */
     var grid = document.getElementById('content-grid');
@@ -188,90 +206,51 @@ var App = (function () {
     if (grid) grid.innerHTML = '';
     if (cat)  cat.innerHTML  = '';
 
-    /* Toggle busca (só faz sentido em Filmes/Séries) */
-    var searchBar = document.getElementById('header-search-form');
+    /* Título da seção */
+    var titleTop = document.getElementById('content-title-top');
+    if (titleTop) titleTop.textContent = TAB_LABELS[tabName] || tabName;
+
+    /* Busca só faz sentido em Filmes/Séries */
+    var showSearch = (tabName === 'movies' || tabName === 'series');
+    var searchBar  = document.getElementById('header-search-form');
+    var searchBtn  = document.getElementById('topbar-search-btn');
     var searchInput = document.getElementById('header-search-input');
     if (searchBar) {
-      if (tabName === 'movies' || tabName === 'series') searchBar.classList.remove('hidden');
-      else searchBar.classList.add('hidden');
+      if (showSearch) searchBar.classList.remove('hidden');
+      else            searchBar.classList.add('hidden');
+    }
+    if (searchBtn) {
+      if (showSearch) searchBtn.classList.add('visible');
+      else            searchBtn.classList.remove('visible');
     }
     if (searchInput) searchInput.value = '';
 
-    /* Título do conteúdo */
-    var titleEl = document.getElementById('content-title');
-    if (titleEl) titleEl.textContent = {
-      live: 'TV ao Vivo',
-      movies: 'Filmes',
-      series: 'Séries',
-      favorites: 'Favoritos',
-      watchlist: 'Continuar Assistindo',
-      settings: 'Configurações'
-    }[tabName] || tabName;
+    /* Favoritos e Watchlist não usam sidebar de categorias */
+    var sidebar = document.querySelector('#screen-main .category-sidebar');
+    var hasCats = (tabName !== 'favorites' && tabName !== 'watchlist');
+    if (sidebar) sidebar.style.display = hasCats ? '' : 'none';
 
-    /* Settings tem layout próprio */
-    var settingsPanel = document.getElementById('tab-settings');
-    if (settingsPanel) {
-      if (tabName === 'settings') settingsPanel.classList.remove('hidden');
-      else                         settingsPanel.classList.add('hidden');
-    }
-
-    /* Esconde "Continuar Assistindo" faixa nas abas que não usam */
-    var cwRow = document.getElementById('continue-watching-row');
-    if (cwRow) cwRow.classList.add('hidden');
-
-    if (tabName === 'settings')   { _updateSettingsDisplay(); return; }
-    if (tabName === 'favorites')  { _renderFavorites(); return; }
-    if (tabName === 'watchlist')  { _renderWatchlist(); return; }
+    if (tabName === 'favorites')  { Renderer.setLoading(false); _renderFavorites(); Navigation.focusFirst('main'); return; }
+    if (tabName === 'watchlist')  { Renderer.setLoading(false); _renderWatchlist(); Navigation.focusFirst('main'); return; }
 
     /* Live/movies/series */
     Renderer.setLoading(true);
     Renderer.setEmpty(false);
     if (_state.mode === 'xtream') _loadXtreamTab(tabName);
     else                          _loadM3UTab(tabName);
+
+    Navigation.focusFirst('main');
   }
 
-  /* ══════════════════════════════════════
-     "Continuar Assistindo" — faixa do topo
-  ══════════════════════════════════════ */
-  function _renderContinueWatchingRow(filterTab) {
-    var row = document.getElementById('continue-watching-row');
-    var box = document.getElementById('cw-cards-container');
-    if (!row || !box) return;
-
-    if (filterTab === 'watchlist' || filterTab === 'favorites' || filterTab === 'settings') {
-      row.classList.add('hidden');
-      return;
-    }
-
-    var items = Storage.getProgressArray();
-    var typeMap = { live: 'live', movies: 'movie', series: 'series' };
-    var t = typeMap[filterTab];
-    if (t) items = items.filter(function (it) { return it._type === t; });
-
-    if (!items.length) { row.classList.add('hidden'); return; }
-
-    row.classList.remove('hidden');
-    box.innerHTML = '';
-    var shown = items.slice(0, 10);
-    for (var i = 0; i < shown.length; i++) {
-      box.appendChild(Renderer.createCard(shown[i], {
-        showTypeBadge: true,
-        onPlay: _playItem,
-        onRemove: function (targetItem) {
-          var id = String(targetItem._episodeId || targetItem.vod_id || targetItem.stream_id || targetItem.id || '');
-          Storage.removeProgress(id);
-          _renderContinueWatchingRow(_state.activeTab);
-        }
-      }));
-    }
+  function _bindContentEvents() {
+    var back = document.getElementById('content-back');
+    if (back) back.addEventListener('click', goBack);
   }
 
   /* ══════════════════════════════════════
      CARREGAMENTO DE ABAS
   ══════════════════════════════════════ */
   function _loadXtreamTab(tab) {
-    _renderContinueWatchingRow(tab);
-
     var getCats, getStreams;
     if      (tab === 'live')   { getCats = API.getLiveCategories;   getStreams = API.getLiveStreams; }
     else if (tab === 'movies') { getCats = API.getVodCategories;    getStreams = API.getVodStreams; }
@@ -291,8 +270,6 @@ var App = (function () {
   }
 
   function _loadM3UTab(tab) {
-    _renderContinueWatchingRow(tab);
-
     API.loadM3U().then(function (all) {
       var typeFilter = { live: 'live', movies: 'movie', series: 'series' }[tab];
       var filtered = [];
@@ -360,7 +337,6 @@ var App = (function () {
       if (token !== _state.loadToken) return;
       if (collected.length >= limit) return;
 
-      /* Filtra itens sem nome */
       var valid = [];
       for (var i = 0; i < chunk.length; i++) {
         var it = chunk[i];
@@ -432,10 +408,8 @@ var App = (function () {
             Renderer.setLoading(true);
 
             if (_state.mode === 'xtream') {
-              /* getStreams é função da API que aceita onChunk e usa Pager */
               _loadStreams(getStreams, cat.category_id);
             } else {
-              /* M3U: closure retorna Promise<items> direto */
               getStreams(cat.category_id).then(function (items) {
                 _state.allItems = items || [];
                 Renderer.setLoading(false);
@@ -479,10 +453,6 @@ var App = (function () {
   }
 
   function _renderFavorites() {
-    Renderer.setLoading(false);
-    var cwRow = document.getElementById('continue-watching-row');
-    if (cwRow) cwRow.classList.add('hidden');
-
     var raw = Storage.getFavoritesArray();
     var items = raw.map(function (f) {
       return {
@@ -498,9 +468,6 @@ var App = (function () {
       };
     });
 
-    var cat = document.getElementById('category-filter');
-    if (cat) cat.innerHTML = '';
-
     _renderGrid(items, {
       onPlay: _playItem,
       onFavorite: _onFavoriteToggle,
@@ -509,14 +476,7 @@ var App = (function () {
   }
 
   function _renderWatchlist() {
-    Renderer.setLoading(false);
-    var cwRow = document.getElementById('continue-watching-row');
-    if (cwRow) cwRow.classList.add('hidden');
-
     var items = Storage.getProgressArray();
-    var cat = document.getElementById('category-filter');
-    if (cat) cat.innerHTML = '';
-
     _renderGrid(items, {
       onPlay: _playItem,
       onFavorite: _onFavoriteToggle,
@@ -642,7 +602,7 @@ var App = (function () {
           var bdEl = document.getElementById('detail-backdrop');
           if (bdEl) bdEl.style.backgroundImage = 'url(' + better + ')';
         }
-      }).catch(function (e) {
+      }).catch(function () {
         if (plotEl && plotEl.textContent === 'Carregando detalhes…') plotEl.textContent = '';
       });
     }
@@ -679,12 +639,10 @@ var App = (function () {
       var snums = Object.keys(info.episodes);
       if (!snums.length) return;
 
-      /* Info da série */
       var si = info.info || {};
       var plotEl = document.getElementById('detail-plot');
       if (plotEl && si.plot) { plotEl.textContent = si.plot; plotEl.style.color = ''; }
 
-      /* Botões de temporada */
       for (var i = 0; i < snums.length; i++) {
         (function (idx) {
           var sNum = snums[idx];
@@ -705,7 +663,6 @@ var App = (function () {
 
       _renderXtreamEps(info.episodes[snums[0]], series, episodesGrid);
 
-      /* Lista plana de episódios pra autoplay do próximo */
       var allEps = [];
       for (var k = 0; k < snums.length; k++) {
         var arr = info.episodes[snums[k]] || [];
@@ -722,7 +679,6 @@ var App = (function () {
       }
       _state.currentEpisodes = allEps;
 
-      /* Botão "Assistir" do detail: continua de onde parou ou começa S1E1 */
       var playBtn = document.getElementById('detail-play');
       if (playBtn) {
         var prog = Storage.getSeriesProgress(series.series_id);
@@ -795,7 +751,6 @@ var App = (function () {
     info.appendChild(title);
     card.appendChild(info);
 
-    /* Progresso */
     var progId = ep.id || ep.stream_id;
     var prog = Storage.getProgress(progId);
     if (prog && prog.pct > 1) {
@@ -877,6 +832,11 @@ var App = (function () {
     }
   }
 
+  function _bindDetailEvents() {
+    var back = document.getElementById('detail-back');
+    if (back) back.addEventListener('click', goBack);
+  }
+
   function _bindDetailFavorite(item) {
     var btn = document.getElementById('detail-favorite');
     var ico = document.getElementById('detail-fav-icon');
@@ -891,11 +851,6 @@ var App = (function () {
     };
   }
 
-  function _bindDetailEvents() {
-    var back = document.getElementById('detail-back');
-    if (back) back.addEventListener('click', goBack);
-  }
-
   function _badge(txt, cls) {
     var el = document.createElement('span');
     el.className = 'badge ' + (cls || '');
@@ -906,21 +861,21 @@ var App = (function () {
   /* ══════════════════════════════════════
      SETTINGS
   ══════════════════════════════════════ */
+  function _enterSettings() {
+    _showScreen('settings');
+    Navigation.pushHistory('settings');
+    _updateSettingsDisplay();
+    Navigation.focusFirst('settings');
+  }
+
   function _bindSettingsEvents() {
-    var cf = document.getElementById('clear-favorites');
-    var cr = document.getElementById('clear-recents');
+    var sb = document.getElementById('settings-back');
+    if (sb) sb.addEventListener('click', goBack);
+
     var ca = document.getElementById('clear-all');
     var sr = document.getElementById('settings-refresh');
     var sl = document.getElementById('settings-logout');
 
-    if (cf) cf.addEventListener('click', function () {
-      Storage.clearFavorites();
-      Renderer.showToast('Favoritos removidos', 'info');
-    });
-    if (cr) cr.addEventListener('click', function () {
-      Storage.clearRecents();
-      Renderer.showToast('Histórico limpo', 'info');
-    });
     if (ca) ca.addEventListener('click', function () {
       Storage.clearAll();
       API.clearCache();
@@ -928,8 +883,7 @@ var App = (function () {
     });
     if (sr) sr.addEventListener('click', function () {
       API.clearCache();
-      Renderer.showToast('Atualizando listas...', 'info');
-      setTimeout(function () { _activateTab(_state.activeTab); }, 200);
+      Renderer.showToast('Cache de listas limpo', 'info');
     });
     if (sl) sl.addEventListener('click', _handleLogout);
   }
@@ -1008,7 +962,7 @@ var App = (function () {
     if (!query) {
       if (_state.isSearching) {
         _state.isSearching = false;
-        _activateTab(tab);
+        _enterSection(tab);
       }
       return;
     }
@@ -1016,14 +970,13 @@ var App = (function () {
     var getStreams;
     if      (tab === 'movies') getStreams = API.getVodStreams;
     else if (tab === 'series') getStreams = API.getSeriesList;
-    else if (tab === 'live')   getStreams = API.getLiveStreams;
     else return;
 
     _state.isSearching = true;
     Renderer.destroyVirtualScroll();
     Renderer.setLoading(true);
 
-    var titleEl = document.getElementById('content-title');
+    var titleEl = document.getElementById('content-title-top');
     if (titleEl) titleEl.textContent = 'Busca: ' + query;
 
     _loadStreams(getStreams, null, query);
@@ -1037,16 +990,17 @@ var App = (function () {
     var sid = screen ? screen.id.replace('screen-', '') : '';
 
     if (sid === 'player') Player.stop();
+    if (sid === 'home')   return; /* na home, BACK não sai */
 
     var prev = Navigation.popHistory();
     if (prev) {
       _showScreen(prev);
-      if (prev === 'main') Navigation.focusFirst('main');
+      if      (prev === 'home')   Navigation.focusFirst('home');
+      else if (prev === 'main')   Navigation.focusFirst('main');
       else if (prev === 'detail') {
         setTimeout(function () {
           var btn = document.getElementById('detail-play');
           if (btn) {
-            /* Atualiza texto do botão (progresso pode ter mudado) */
             var item = btn._detailItem;
             if (item) {
               var itemType = item._type || item.type || 'movie';
@@ -1062,8 +1016,7 @@ var App = (function () {
         }, 100);
       }
     } else {
-      _showScreen('main');
-      Navigation.focusFirst('main');
+      _enterHome();
     }
   }
 

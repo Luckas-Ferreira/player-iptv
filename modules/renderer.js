@@ -4,7 +4,8 @@
  * OTIMIZAÇÕES PARA TV ANTIGA:
  *  • Pager: máx 80 cards no DOM ao mesmo tempo (com spacer compensando os removidos)
  *  • CHUNK 8: 8 cards por render — TV antiga não trava processando 30 nós de uma vez
- *  • IMGMAX 1: 1 imagem carregando por vez (rede da TV é frágil)
+ *  • IMGMAX 4: até 4 imagens em paralelo (o navegador já limita a ~6 conexões/host;
+ *    com 1, a grade de filmes/séries demorava minutos para preencher)
  *  • Sem retry com proxy de imagem (causava avalanche de conexões)
  *  • Sem long-press (favorito via tela de detalhe / botão visível no card)
  *  • Cards mantêm referência mínima ao item (closures menores)
@@ -13,8 +14,8 @@ var Renderer = (function () {
   'use strict';
 
   /* ── CONFIG ─────────────────────────────────────────────── */
-  var IMGMAX      = 1;
-  var IMG_DELAY   = 80;
+  var IMGMAX      = 4;
+  var IMG_DELAY   = 0;
   var IMG_TIMEOUT = 8000;
 
   /* ── FILA DE IMAGENS ───────────────────────────────────── */

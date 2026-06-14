@@ -1,7 +1,11 @@
 /**
  * navigation.js — Navegação por controle remoto (Smart TV)
- * v3 — adiciona zona .cw-cards (faixa Continuar Assistindo)
- *      corrige scroll horizontal da faixa ao navegar com setas
+ *
+ * Telas:
+ *   • home: home-header (3 botões canto) + home-tiles (3) + home-tiles-secondary (2)
+ *   • main: topbar (voltar + busca) + category-sidebar + content-header + content-grid
+ *   • settings: topbar + settings-container
+ *   • detail/player: navegação livre
  */
 
 var Navigation = (function () {
@@ -44,8 +48,7 @@ var Navigation = (function () {
       if (code === 8) return;                    // backspace — deixa o input tratar
       if (code === 37 || code === 39) return;    // setas esq/dir — deixa o input tratar
       if (code === 13 || code === 195) {
-        // Se for o input de busca, NÃO faz nada — o app.js já capturou no capture phase
-        if (focused.id === 'header-search-input') return;
+        if (focused.id === 'header-search-input') return; // app.js trata
         e.preventDefault();
         focused.blur();
         return;
@@ -99,41 +102,53 @@ var Navigation = (function () {
   ══════════════════════════════════════ */
   function _getConstraints(focused, direction) {
     if (!focused) return null;
+    var c = focused.closest;
+    if (!c) return null;
 
-    var inCW = focused.closest && focused.closest('.cw-cards');
-    var inTopbar = focused.closest && focused.closest('.topbar');
-    var inCategory = focused.closest && focused.closest('.category-sidebar');
-    var inGrid = focused.closest && focused.closest('.content-grid');
-    var inSettings = focused.closest && focused.closest('.settings-container');
-    var inEpisodes = focused.closest && focused.closest('.episodes-panel');
-
-    /* ── Faixa Continuar Assistindo ── */
-    if (inCW) {
-      if (direction === 'left') return ['.cw-cards', '.category-sidebar'];
-      if (direction === 'right') return ['.cw-cards'];
-      if (direction === 'up') return ['.topbar'];
-      if (direction === 'down') return ['.cw-cards', '.content-grid', '.content-empty'];
+    /* ── HOME ── */
+    if (focused.closest('#screen-home')) {
+      /* Navegação livre dentro da home (header + 2 fileiras de tiles).
+         O scoring espacial cuida das transições. */
+      return ['#screen-home'];
     }
 
-    /* ── Topbar (Antiga Sidebar) ── */
+    var inTopbar      = focused.closest('.topbar');
+    var inSettings    = focused.closest('.settings-container');
+    var inCategory    = focused.closest('.category-sidebar');
+    var inContentHdr  = focused.closest('.content-header');
+    var inGrid        = focused.closest('.content-grid');
+    var inEpisodes    = focused.closest('.episodes-panel');
+
+    /* ── Topbar (Voltar + título + Buscar) ── */
     if (inTopbar) {
       if (direction === 'left' || direction === 'right') return ['.topbar'];
-      if (direction === 'down') return ['.category-sidebar', '.cw-cards', '.content-grid', '.settings-container'];
+      if (direction === 'down') {
+        if (_currentScreen === 'settings') return ['.settings-container'];
+        return ['.content-header', '.category-sidebar', '.content-grid'];
+      }
       if (direction === 'up') return ['.topbar'];
     }
 
-    /* ── Category Sidebar ── */
+    /* ── Sidebar de categorias ── */
     if (inCategory) {
       if (direction === 'up' || direction === 'down') return ['.category-sidebar', '.topbar'];
-      if (direction === 'right') return ['.cw-cards', '.content-grid', '.content-empty', '.content-header'];
+      if (direction === 'right') return ['.content-header', '.content-grid', '.content-empty'];
       if (direction === 'left') return ['.category-sidebar'];
+    }
+
+    /* ── Cabeçalho de conteúdo (input de busca) ── */
+    if (inContentHdr) {
+      if (direction === 'up')    return ['.topbar'];
+      if (direction === 'down')  return ['.content-grid', '.content-empty'];
+      if (direction === 'left')  return ['.content-header', '.category-sidebar'];
+      if (direction === 'right') return ['.content-header'];
     }
 
     /* ── Grid principal ── */
     if (inGrid) {
-      if (direction === 'left') return ['.content-grid', '.category-sidebar'];
+      if (direction === 'left')  return ['.content-grid', '.category-sidebar'];
       if (direction === 'right') return ['.content-grid'];
-      if (direction === 'up') return ['.content-grid', '.cw-cards', '.topbar', '.content-header'];
+      if (direction === 'up')    return ['.content-grid', '.content-header', '.topbar'];
       /* sem constraint para baixo — scroll livre */
     }
 
@@ -176,9 +191,9 @@ var Navigation = (function () {
 
       if (constraints) {
         var allowed = false;
-        for (var c = 0; c < constraints.length; c++) {
-          if (constraints[c] === '') { allowed = false; break; }
-          if (el.closest && el.closest(constraints[c])) { allowed = true; break; }
+        for (var k = 0; k < constraints.length; k++) {
+          if (constraints[k] === '') { allowed = false; break; }
+          if (el.closest && el.closest(constraints[k])) { allowed = true; break; }
         }
         if (!allowed) continue;
       }
@@ -257,29 +272,10 @@ var Navigation = (function () {
   /* ══════════════════════════════════════
      Scroll inteligente ao focar elemento
      — respeita header fixo
-     — faz scroll horizontal na faixa CW
   ══════════════════════════════════════ */
   function _scrollIntoView(el) {
     try {
-      /* Scroll horizontal para faixa Continuar Assistindo */
-      var cwRow = el.closest && el.closest('.cw-cards');
-      if (cwRow) {
-        var elRect = el.getBoundingClientRect();
-        var rowRect = cwRow.getBoundingClientRect();
-        var elLeft = elRect.left - rowRect.left + cwRow.scrollLeft;
-        var elRight = elLeft + elRect.width;
-        var viewLeft = cwRow.scrollLeft;
-        var viewRight = cwRow.scrollLeft + cwRow.clientWidth;
-
-        if (elLeft < viewLeft + 8) {
-          cwRow.scrollLeft = elLeft - 8;
-        } else if (elRight > viewRight - 8) {
-          cwRow.scrollLeft = elRight - cwRow.clientWidth + 8;
-        }
-        /* Também rola verticalmente para garantir que a faixa esteja visível */
-      }
-
-      var header = document.querySelector('.content-header');
+      var header = document.querySelector('.topbar');
       var headerH = header ? header.offsetHeight : 0;
       var rect = el.getBoundingClientRect();
       var scrollParent = _getScrollParent(el);
@@ -340,7 +336,7 @@ var Navigation = (function () {
       _history.pop();
       return _history[_history.length - 1];
     }
-    return _history[0] || 'main';
+    return _history[0] || 'home';
   }
 
   function getCurrentHistory() {
@@ -356,6 +352,22 @@ var Navigation = (function () {
       var screen = screenId ? document.getElementById('screen-' + screenId) : document.body;
       if (!screen) return;
       var focusables = screen.querySelectorAll(_focusableSelector);
+      /* Em screens com header (topbar/home-header), pula o primeiro grupo
+         de botões e foca no conteúdo principal — fica mais natural. */
+      var preferred = null;
+      if (screenId === 'home') {
+        preferred = screen.querySelector('.home-tile');
+      } else if (screenId === 'main') {
+        preferred = screen.querySelector('.cat-btn') ||
+                    screen.querySelector('.card') ||
+                    screen.querySelector('#topbar-search-btn.visible');
+      } else if (screenId === 'settings') {
+        preferred = screen.querySelector('.settings-item') ||
+                    screen.querySelector('.btn-primary');
+      }
+      if (preferred && _isVisible(preferred)) {
+        try { preferred.focus(); return; } catch (e) {}
+      }
       for (var i = 0; i < focusables.length; i++) {
         if (_isVisible(focusables[i])) {
           try { focusables[i].focus(); } catch (e) { }

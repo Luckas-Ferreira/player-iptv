@@ -62,35 +62,103 @@
     </div>
   </div>
 
-  <!-- ===================== TELA PRINCIPAL ===================== -->
+  <!-- ===================== TELA HOME ===================== -->
+  <div id="screen-home" class="screen hidden" role="main">
+    <header class="home-header">
+      <div class="home-logo">
+        <span class="home-logo-icon"></span>
+        <span class="home-logo-text">MPlay</span>
+      </div>
+      <div class="home-user">
+        <span id="home-user-name" class="home-user-name"></span>
+        <button id="home-settings" class="home-icon-btn" type="button" tabindex="0" aria-label="Configurações" title="Configurações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09c0 .67.4 1.27 1 1.51a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09c.24.6.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.67 0-1.27.4-1.51 1z"></path>
+          </svg>
+        </button>
+        <button id="home-logout" class="home-icon-btn" type="button" tabindex="0" aria-label="Sair" title="Sair">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="home-content">
+      <div class="home-tiles" role="list">
+        <button class="home-tile" data-tab="live" type="button" tabindex="0" role="listitem">
+          <div class="home-tile-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="13" rx="2"></rect>
+              <polyline points="8 21 12 17 16 21"></polyline>
+              <line x1="6" y1="17" x2="6" y2="17"></line>
+            </svg>
+          </div>
+          <h2 class="home-tile-title">TV ao Vivo</h2>
+          <p class="home-tile-desc">Canais ao vivo</p>
+        </button>
+
+        <button class="home-tile" data-tab="movies" type="button" tabindex="0" role="listitem">
+          <div class="home-tile-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="23 7 16 12 23 17 23 7"></polygon>
+              <rect x="1" y="5" width="15" height="14" rx="2"></rect>
+            </svg>
+          </div>
+          <h2 class="home-tile-title">Filmes</h2>
+          <p class="home-tile-desc">Sob demanda</p>
+        </button>
+
+        <button class="home-tile" data-tab="series" type="button" tabindex="0" role="listitem">
+          <div class="home-tile-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <h2 class="home-tile-title">Séries</h2>
+          <p class="home-tile-desc">Temporadas e episódios</p>
+        </button>
+      </div>
+
+      <div class="home-tiles-secondary" role="list">
+        <button class="home-tile home-tile-sm" data-tab="favorites" type="button" tabindex="0" role="listitem">
+          <div class="home-tile-icon home-tile-icon-sm">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </div>
+          <span class="home-tile-title-sm">Favoritos</span>
+        </button>
+        <button class="home-tile home-tile-sm" data-tab="watchlist" type="button" tabindex="0" role="listitem">
+          <div class="home-tile-icon home-tile-icon-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <span class="home-tile-title-sm">Continuar Assistindo</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TELA DE SEÇÃO (TV/Filmes/Séries) ===================== -->
   <div id="screen-main" class="screen hidden" role="main">
 
     <nav class="topbar" role="navigation">
-      <div class="topbar-logo">
-        <span class="logo-icon-sm"></span>
-        <span>MPlay</span>
-      </div>
-      <ul class="topbar-menu" role="menubar">
-        <li class="menu-item active" data-tab="live" role="menuitem" tabindex="0">
-          <span class="menu-label">TV ao Vivo</span>
-        </li>
-        <li class="menu-item" data-tab="movies" role="menuitem" tabindex="0">
-          <span class="menu-label">Filmes</span>
-        </li>
-        <li class="menu-item" data-tab="series" role="menuitem" tabindex="0">
-          <span class="menu-label">Séries</span>
-        </li>
-        <li class="menu-item" data-tab="favorites" role="menuitem" tabindex="0">
-          <span class="menu-label">Favoritos</span>
-        </li>
-        <li class="menu-item" data-tab="watchlist" role="menuitem" tabindex="0">
-          <span class="menu-label">Continuar</span>
-        </li>
-        <li class="menu-item" data-tab="settings" role="menuitem" tabindex="0">
-          <span class="menu-label">Configurações</span>
-        </li>
-      </ul>
-      <div class="topbar-user">
+      <button id="content-back" class="content-back-btn" type="button" tabindex="0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Voltar</span>
+      </button>
+      <h1 id="content-title-top" class="content-title-top">Conteúdo</h1>
+      <div class="topbar-actions">
         <button id="topbar-search-btn" class="topbar-search-btn" type="button" tabindex="0" aria-label="Buscar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
@@ -98,48 +166,33 @@
           </svg>
           <span>Buscar</span>
         </button>
-        <div class="user-info">
-          <span class="user-dot"></span>
-          <span id="user-display-name" class="user-name">Conectado</span>
-        </div>
-        <button id="btn-logout" class="topbar-logout" type="button" tabindex="0">Sair</button>
       </div>
     </nav>
 
     <div class="main-body-wrapper">
 
       <aside class="category-sidebar">
-        <h2 id="content-title" class="content-title">TV ao Vivo</h2>
+        <h2 class="content-title">Categorias</h2>
         <div id="category-filter" class="category-filter" role="group"></div>
       </aside>
 
       <div class="main-content">
 
         <header class="content-header">
-          <div class="header-actions">
-            <form id="header-search-form" class="search-bar hidden">
-              <div class="search-input-wrapper">
-                <input type="text" id="header-search-input" placeholder="Buscar título..." tabindex="0">
-                <button type="submit" id="header-search-btn" class="header-search-btn" tabindex="0" aria-label="Pesquisar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                </button>
-              </div>
-            </form>
-          </div>
+          <form id="header-search-form" class="search-bar hidden">
+            <div class="search-input-wrapper">
+              <input type="text" id="header-search-input" placeholder="Buscar título..." tabindex="0">
+              <button type="submit" id="header-search-btn" class="header-search-btn" tabindex="0" aria-label="Pesquisar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </button>
+            </div>
+          </form>
         </header>
 
         <div id="content-body" class="content-body">
-
-          <div id="continue-watching-row" class="hidden">
-            <div class="cw-header">
-              <span class="cw-title">Continuar Assistindo</span>
-            </div>
-            <div id="cw-cards-container" class="cw-cards"></div>
-          </div>
-
           <div id="content-grid" class="content-grid" role="list"></div>
 
           <div id="content-loading" class="content-loading hidden" aria-live="polite">
@@ -150,75 +203,73 @@
           <div id="content-empty" class="content-empty hidden" aria-live="polite">
             <p class="empty-text">Nenhum item encontrado</p>
           </div>
-
-          <!-- Configurações -->
-          <div id="tab-settings" class="tab-panel hidden" role="region">
-            <div class="settings-container">
-              <h3 class="settings-section-title">Conteúdo</h3>
-              <div class="settings-group">
-                <div class="settings-item" tabindex="0">
-                  <div class="settings-item-info">
-                    <span class="settings-label">Atualizar Listas</span>
-                    <span class="settings-desc">Limpa o cache e busca novos canais</span>
-                  </div>
-                  <button id="settings-refresh" class="btn-primary" type="button" tabindex="0">Atualizar</button>
-                </div>
-              </div>
-
-              <h3 class="settings-section-title">Dados</h3>
-              <div class="settings-group">
-                <div class="settings-item" tabindex="0">
-                  <div class="settings-item-info">
-                    <span class="settings-label">Limpar Favoritos</span>
-                    <span class="settings-desc">Remove os favoritos salvos</span>
-                  </div>
-                  <button id="clear-favorites" class="btn-danger-sm" type="button" tabindex="0">Limpar</button>
-                </div>
-                <div class="settings-item" tabindex="0">
-                  <div class="settings-item-info">
-                    <span class="settings-label">Limpar Histórico</span>
-                    <span class="settings-desc">Remove o histórico de reprodução</span>
-                  </div>
-                  <button id="clear-recents" class="btn-danger-sm" type="button" tabindex="0">Limpar</button>
-                </div>
-                <div class="settings-item" tabindex="0">
-                  <div class="settings-item-info">
-                    <span class="settings-label">Limpar Tudo</span>
-                    <span class="settings-desc">Remove todos os dados locais</span>
-                  </div>
-                  <button id="clear-all" class="btn-danger-sm" type="button" tabindex="0">Limpar Tudo</button>
-                </div>
-              </div>
-
-              <h3 class="settings-section-title">Conexão</h3>
-              <div class="settings-group">
-                <div class="settings-item">
-                  <div class="settings-item-info">
-                    <span class="settings-label">Conta</span>
-                    <span id="settings-account" class="settings-desc">—</span>
-                  </div>
-                  <button id="settings-logout" class="btn-danger-sm" type="button" tabindex="0">Desconectar</button>
-                </div>
-              </div>
-
-              <h3 class="settings-section-title">Sobre</h3>
-              <div class="settings-group">
-                <div class="settings-item">
-                  <div class="settings-item-info">
-                    <span class="settings-label">MPlay</span>
-                    <span class="settings-desc">Versão 2.0 – Player IPTV para Smart TV</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div><!-- content-body -->
+        </div>
 
       </div><!-- main-content -->
     </div><!-- main-body-wrapper -->
 
   </div><!-- screen-main -->
+
+  <!-- ===================== TELA DE CONFIGURAÇÕES ===================== -->
+  <div id="screen-settings" class="screen hidden" role="main">
+    <nav class="topbar" role="navigation">
+      <button id="settings-back" class="content-back-btn" type="button" tabindex="0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Voltar</span>
+      </button>
+      <h1 class="content-title-top">Configurações</h1>
+      <div class="topbar-actions"></div>
+    </nav>
+
+    <div class="settings-wrapper">
+      <div class="settings-container">
+        <h3 class="settings-section-title">Conteúdo</h3>
+        <div class="settings-group">
+          <div class="settings-item" tabindex="0">
+            <div class="settings-item-info">
+              <span class="settings-label">Atualizar Listas</span>
+              <span class="settings-desc">Limpa o cache e busca novos canais</span>
+            </div>
+            <button id="settings-refresh" class="btn-primary" type="button" tabindex="0">Atualizar</button>
+          </div>
+        </div>
+
+        <h3 class="settings-section-title">Dados</h3>
+        <div class="settings-group">
+          <div class="settings-item" tabindex="0">
+            <div class="settings-item-info">
+              <span class="settings-label">Limpar Tudo</span>
+              <span class="settings-desc">Remove todos os dados locais</span>
+            </div>
+            <button id="clear-all" class="btn-danger-sm" type="button" tabindex="0">Limpar</button>
+          </div>
+        </div>
+
+        <h3 class="settings-section-title">Conexão</h3>
+        <div class="settings-group">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <span class="settings-label">Conta</span>
+              <span id="settings-account" class="settings-desc">—</span>
+            </div>
+            <button id="settings-logout" class="btn-danger-sm" type="button" tabindex="0">Desconectar</button>
+          </div>
+        </div>
+
+        <h3 class="settings-section-title">Sobre</h3>
+        <div class="settings-group">
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <span class="settings-label">MPlay</span>
+              <span class="settings-desc">Versão 2.1 – Player IPTV para Smart TV</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ===================== TELA: DETALHE ===================== -->
   <div id="screen-detail" class="screen hidden" role="main">
