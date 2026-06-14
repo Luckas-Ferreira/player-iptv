@@ -158,15 +158,7 @@
         <span>Voltar</span>
       </button>
       <h1 id="content-title-top" class="content-title-top">Conteúdo</h1>
-      <div class="topbar-actions">
-        <button id="topbar-search-btn" class="topbar-search-btn" type="button" tabindex="0" aria-label="Buscar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <span>Buscar</span>
-        </button>
-      </div>
+      <input id="topbar-search-input" class="topbar-search-input hidden" type="text" placeholder="Buscar título..." tabindex="0" autocomplete="off" spellcheck="false">
     </nav>
 
     <div class="main-body-wrapper">
@@ -177,20 +169,6 @@
       </aside>
 
       <div class="main-content">
-
-        <header class="content-header">
-          <form id="header-search-form" class="search-bar hidden">
-            <div class="search-input-wrapper">
-              <input type="text" id="header-search-input" placeholder="Buscar título..." tabindex="0">
-              <button type="submit" id="header-search-btn" class="header-search-btn" tabindex="0" aria-label="Pesquisar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-              </button>
-            </div>
-          </form>
-        </header>
 
         <div id="content-body" class="content-body">
           <div id="content-grid" class="content-grid" role="list"></div>

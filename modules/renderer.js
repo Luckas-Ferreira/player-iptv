@@ -14,9 +14,10 @@ var Renderer = (function () {
   'use strict';
 
   /* ── CONFIG ─────────────────────────────────────────────── */
-  var IMGMAX      = 4;
-  var IMG_DELAY   = 0;
-  var IMG_TIMEOUT = 8000;
+  var IMGMAX       = 4;
+  var IMG_DELAY    = 0;
+  var IMG_TIMEOUT  = 15000;   /* TV antiga + rede ruim: timeout maior */
+  var IMG_RETRY_MS = 1200;    /* 1 retry após esse delay quando falhar */
 
   /* ── FILA DE IMAGENS ───────────────────────────────────── */
   var imgQueue    = [];
@@ -62,35 +63,64 @@ var Renderer = (function () {
     }
   }
 
+  /*
+   * Carrega direto no <img> da página (sem new Image() de preload).
+   * O preload duplicava a request — em rede de TV antiga isso dobrava
+   * a chance de falha por timeout/conexão lenta. Carregando direto:
+   *  • 1 request só
+   *  • browser usa cache nativo se a mesma URL já foi puxada
+   *  • em falha, retry 1x depois de IMG_RETRY_MS antes de desistir
+   *  • em falha final, NÃO esconde — deixa o fundo placeholder visível
+   */
   function _loadOne(imgEl, src) {
-    var done = false;
-    var tmp  = new Image();
+    var done  = false;
+    var tried = 0;
 
-    var timer = setTimeout(function () {
-      if (done) return;
-      try { tmp.src = ''; } catch (e) {}
-      _finish(false);
-    }, IMG_TIMEOUT);
+    function attempt() {
+      tried++;
+      if (!imgEl || !imgEl.parentNode) { _finish(false); return; }
 
-    function _finish(success) {
+      var localTimer = setTimeout(function () { onErr(); }, IMG_TIMEOUT);
+
+      function clear() {
+        clearTimeout(localTimer);
+        imgEl.onload = null;
+        imgEl.onerror = null;
+      }
+      function onOk() {
+        if (done) return;
+        clear();
+        imgEl.setAttribute('data-loaded', '1');
+        _finish(true);
+      }
+      function onErr() {
+        if (done) return;
+        clear();
+        if (tried < 2) {
+          /* limpa o src pra não deixar o ícone broken-image e tenta de novo */
+          try { imgEl.removeAttribute('src'); } catch (e) {}
+          setTimeout(attempt, IMG_RETRY_MS);
+        } else {
+          /* desiste — remove src pra não mostrar broken-image, mas
+             mantém o elemento visível (fundo placeholder bg-raised) */
+          try { imgEl.removeAttribute('src'); } catch (e) {}
+          _finish(false);
+        }
+      }
+
+      imgEl.onload  = onOk;
+      imgEl.onerror = onErr;
+      imgEl.src = src;
+    }
+
+    function _finish() {
       if (done) return;
       done = true;
-      clearTimeout(timer);
-      tmp.onload = tmp.onerror = null;
       imgLoading = Math.max(0, imgLoading - 1);
-
-      if (success && imgEl && imgEl.parentNode) {
-        imgEl.src = src;
-        imgEl.setAttribute('data-loaded', '1');
-      } else if (imgEl && imgEl.parentNode) {
-        imgEl.style.visibility = 'hidden';
-      }
       _scheduleProcess();
     }
 
-    tmp.onload  = function () { _finish(true); };
-    tmp.onerror = function () { _finish(false); };
-    tmp.src = src;
+    attempt();
   }
 
   function lazyLoadImg(imgEl, src) {
@@ -117,7 +147,6 @@ var Renderer = (function () {
       else if (item.vod_id) type = 'movie';
     }
     var icon = item.stream_icon || item.cover || item.series_cover || '';
-    var isFav = (typeof Storage !== 'undefined') ? Storage.isFavorite(id) : false;
 
     var card = _el('div', {
       className: 'card card-' + type,
@@ -145,15 +174,6 @@ var Renderer = (function () {
         textContent: type === 'movie' ? 'FILME' : 'SÉRIE'
       }));
     }
-
-    /* Favorito */
-    var favBtn = _el('button', {
-      className: 'card-fav' + (isFav ? ' is-fav' : ''),
-      textContent: isFav ? '★' : '☆',
-      'aria-label': 'Favoritar',
-      type: 'button'
-    });
-    card.appendChild(favBtn);
 
     /* Progresso (VOD) */
     if (type !== 'live' && typeof Storage !== 'undefined') {
@@ -189,7 +209,6 @@ var Renderer = (function () {
 
     /* Eventos */
     card.addEventListener('click', function (e) {
-      if (favBtn.contains(e.target)) return;
       if (rmBtn && rmBtn.contains(e.target)) return;
       if (options.onPlay) options.onPlay(item);
     });
@@ -199,14 +218,6 @@ var Renderer = (function () {
         e.preventDefault();
         if (options.onPlay) options.onPlay(item);
       }
-    });
-
-    favBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      var nf = Storage.toggleFavorite(item);
-      favBtn.textContent = nf ? '★' : '☆';
-      favBtn.className = 'card-fav' + (nf ? ' is-fav' : '');
-      if (options.onFavorite) options.onFavorite(item, nf);
     });
 
     return card;

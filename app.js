@@ -27,6 +27,20 @@ var App = (function () {
 
   var _catLoadTimer = null;
 
+  /* Normaliza string para busca: minúscula, sem acento.
+     Usado em vez de String.prototype.normalize() que não tem
+     suporte em TVs antigas (Tizen 2.x, Viera 2012-2014). */
+  function _norm(s) {
+    s = (s == null ? '' : String(s)).toLowerCase();
+    return s.replace(/[áàâãäå]/g, 'a')
+            .replace(/[éèêë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óòôõö]/g, 'o')
+            .replace(/[úùûü]/g, 'u')
+            .replace(/[ñ]/g, 'n')
+            .replace(/[ç]/g, 'c');
+  }
+
   var TAB_LABELS = {
     live:       'TV ao Vivo',
     movies:     'Filmes',
@@ -212,18 +226,12 @@ var App = (function () {
 
     /* Busca só faz sentido em Filmes/Séries */
     var showSearch = (tabName === 'movies' || tabName === 'series');
-    var searchBar  = document.getElementById('header-search-form');
-    var searchBtn  = document.getElementById('topbar-search-btn');
-    var searchInput = document.getElementById('header-search-input');
-    if (searchBar) {
-      if (showSearch) searchBar.classList.remove('hidden');
-      else            searchBar.classList.add('hidden');
+    var searchInput = document.getElementById('topbar-search-input');
+    if (searchInput) {
+      if (showSearch) searchInput.classList.add('visible');
+      else            searchInput.classList.remove('visible');
+      searchInput.value = '';
     }
-    if (searchBtn) {
-      if (showSearch) searchBtn.classList.add('visible');
-      else            searchBtn.classList.remove('visible');
-    }
-    if (searchInput) searchInput.value = '';
 
     /* Favoritos e Watchlist não usam sidebar de categorias */
     var sidebar = document.querySelector('#screen-main .category-sidebar');
@@ -332,6 +340,7 @@ var App = (function () {
     Renderer.Pager.init(grid, { onPlay: _playItem, onFavorite: _onFavoriteToggle });
 
     var limit = search ? 800 : MAX_ITEMS_PER_CATEGORY;
+    var normQuery = search ? _norm(search) : '';
 
     getStreams(categoryId, function (chunk) {
       if (token !== _state.loadToken) return;
@@ -342,8 +351,8 @@ var App = (function () {
         var it = chunk[i];
         if (it && it.name && it.name.trim() !== '') {
           if (search) {
-            var q = search.toLowerCase();
-            if (it.name.toLowerCase().indexOf(q) === -1) continue;
+            /* Comparação insensível a acento: "comedia" casa com "Comédia" */
+            if (_norm(it.name).indexOf(normQuery) === -1) continue;
           }
           valid.push(it);
           if (collected.length + valid.length >= limit) break;
@@ -916,23 +925,11 @@ var App = (function () {
      BUSCA
   ══════════════════════════════════════ */
   function _bindSearchEvents() {
-    var form  = document.getElementById('header-search-form');
-    var input = document.getElementById('header-search-input');
-    var btn   = document.getElementById('header-search-btn');
-    var topBtn = document.getElementById('topbar-search-btn');
+    var input = document.getElementById('topbar-search-input');
+    if (!input) return;
 
-    if (!form || !input || !btn) return;
-
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      _handleSearch();
-    });
-    btn.addEventListener('click', function (e) {
-      e.preventDefault();
-      _handleSearch();
-    });
-
-    /* TVs antigas precisam capturar Enter ANTES do navigation.js fazer blur */
+    /* Capture phase: Enter dispara busca antes do navigation.js
+       processar a tecla. */
     input.addEventListener('keydown', function (e) {
       var code = e.keyCode || e.which;
       if (code === 13 || code === 195) {
@@ -941,20 +938,10 @@ var App = (function () {
         _handleSearch();
       }
     }, true);
-
-    if (topBtn) {
-      topBtn.addEventListener('click', function () {
-        if (form) form.classList.remove('hidden');
-        if (input) {
-          input.focus();
-          try { input.select(); } catch (e) {}
-        }
-      });
-    }
   }
 
   function _handleSearch() {
-    var input = document.getElementById('header-search-input');
+    var input = document.getElementById('topbar-search-input');
     if (!input) return;
     var query = (input.value || '').trim();
     var tab = _state.activeTab;
