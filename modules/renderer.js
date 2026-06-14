@@ -23,27 +23,11 @@ var Renderer = (function () {
   var imgQueue    = [];
   var imgLoading  = 0;
   var imgTimer    = null;
-  var observer    = null;
-
-  function _getObserver() {
-    if (observer) return observer;
-    if (!('IntersectionObserver' in window)) return null;
-    try {
-      observer = new IntersectionObserver(function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          var e = entries[i];
-          if (!e.isIntersecting) continue;
-          try { observer.unobserve(e.target); } catch (err) {}
-          var src = e.target.getAttribute('data-src');
-          if (src && e.target.getAttribute('data-loaded') !== '1') {
-            imgQueue.push({ el: e.target, src: src });
-            _scheduleProcess();
-          }
-        }
-      }, { rootMargin: '200px 0px', threshold: 0 });
-    } catch (e) { observer = null; }
-    return observer;
-  }
+  /* IntersectionObserver foi removido — em várias TVs antigas o
+     objeto existe mas o callback nunca dispara, resultando em
+     imagens que nunca carregam. A fila simples carrega tudo
+     assim que o card é adicionado ao DOM, com no máximo IMGMAX
+     em paralelo, o que já é suficiente pra não sobrecarregar. */
 
   function _scheduleProcess() {
     if (imgTimer) return;
@@ -126,13 +110,8 @@ var Renderer = (function () {
   function lazyLoadImg(imgEl, src) {
     if (!imgEl || !src) return;
     imgEl.setAttribute('data-src', src);
-    var obs = _getObserver();
-    if (obs) {
-      obs.observe(imgEl);
-    } else {
-      imgQueue.push({ el: imgEl, src: src });
-      _scheduleProcess();
-    }
+    imgQueue.push({ el: imgEl, src: src });
+    _scheduleProcess();
   }
 
   /* ── CARD ──────────────────────────────────────────────── */
@@ -488,14 +467,6 @@ var Renderer = (function () {
     imgQueue   = [];
     imgLoading = 0;
     if (imgTimer) { clearTimeout(imgTimer); imgTimer = null; }
-    if (observer) {
-      try {
-        var pending = document.querySelectorAll('img[data-src]:not([data-loaded="1"])');
-        for (var i = 0; i < pending.length; i++) {
-          try { observer.unobserve(pending[i]); } catch (e) {}
-        }
-      } catch (e) {}
-    }
   }
 
   /* ── HELPERS ───────────────────────────────────────────── */

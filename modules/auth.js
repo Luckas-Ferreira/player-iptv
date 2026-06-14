@@ -142,9 +142,13 @@ var Auth = (function () {
 
     var base = server;
 
+    /* Mandamos ambos os pares pra cobrir tanto Xtream padrão
+       (username/password) quanto provedores BR (usuario/senha). */
+    var u = encodeURIComponent(username);
+    var p = encodeURIComponent(password);
     var url = base + '/player_api.php' +
-      '?username=' + encodeURIComponent(username) +
-      '&password=' + encodeURIComponent(password);
+      '?username=' + u + '&password=' + p +
+      '&usuario=' + u + '&senha=' + p;
 
     return _fetchJSON(url, 25000).then(function (data) {
       if (!data) return { success: false, error: 'Resposta vazia' };
@@ -189,11 +193,12 @@ var Auth = (function () {
 
       /* Servidores antigos que não respondem mais — força para o default.
          Isso é importante: sem isso, uma sessão antiga deixa o app sem
-         carregar nenhuma lista e o usuário precisa "Limpar Tudo" no menu. */
+         carregar nenhuma lista e o usuário precisa "Limpar Tudo" no menu.
+         OBS: 191.96.78.246 voltou a funcionar (provedor o usa direto
+         para search server-side em PT). NÃO incluir nessa lista. */
       if (saved.type === 'xtream') {
         var s = (saved.server || '').toLowerCase();
         var STALE_SERVERS = [
-          'http://191.96.78.246',
           'https://streams4k.xyz',
           'http://streams4k.xyz',
           'https://godisfaithful.shop',

@@ -36,9 +36,15 @@ var API = (function () {
   function _xtreamUrl(action, extra) {
     var c = Auth.getCredentials();
     if (!c || c.type !== 'xtream') return null;
+    var u = encodeURIComponent(c.username);
+    var p = encodeURIComponent(c.password);
+    /* Mandamos os DOIS pares: username/password (padrão Xtream Codes)
+       e usuario/senha (variante PT que alguns provedores BR usam, e
+       é a única que aceita &search= server-side em alguns deles).
+       Servidor ignora os parâmetros que não reconhecer. */
     var url = _base() + '/player_api.php' +
-      '?username=' + encodeURIComponent(c.username) +
-      '&password=' + encodeURIComponent(c.password) +
+      '?username=' + u + '&password=' + p +
+      '&usuario=' + u + '&senha=' + p +
       '&action=' + action;
     if (extra) url += extra;
     return url;
@@ -58,25 +64,24 @@ var API = (function () {
   function getSeriesCategories() { return _fetchCategories('get_series_categories', 'cats_series'); }
 
   /* ── Streams ───────────────────────────────────────────
-     Busca: o Xtream Codes não tem busca server-side confiável
-     — alguns servidores ignoram &search=, outros retornam vazio.
-     Quando o app precisa buscar, pegamos a lista completa
-     (sem category_id) e o app.js filtra os nomes localmente.
-     Cache: a chave para busca é typeTag + '_all', então a
-     mesma lista completa serve para qualquer termo pesquisado. */
+     Navegação normal: filtra por category_id.
+     Busca: usa &search= server-side (suportado pelo provedor BR).
+     Se o server-side retornar vazio, tenta agregar por categoria
+     como fallback — assim a busca funciona em qualquer servidor. */
   function _fetchStreams(action, typeTag, categoryId, onChunk, search) {
     var key = search
-      ? (typeTag + '_all')
+      ? (typeTag + '_search_' + search.toLowerCase())
       : (typeTag + '_' + (categoryId || 'all'));
 
-    var extra = search
-      ? ''
-      : (categoryId ? '&category_id=' + categoryId : '');
+    var extra;
+    if (search)        extra = '&search=' + encodeURIComponent(search);
+    else if (categoryId) extra = '&category_id=' + categoryId;
+    else                 extra = '';
 
     var url = _xtreamUrl(action, extra);
 
-    /* Cache hit */
-    if (cache[key]) {
+    /* Cache hit — não cacheia vazio pra permitir nova tentativa */
+    if (cache[key] && cache[key].length > 0) {
       if (onChunk) onChunk(cache[key]);
       return Promise.resolve(cache[key]);
     }
@@ -86,18 +91,21 @@ var API = (function () {
       return arr;
     }
 
+    var limit = search ? 5000 : 1500;
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
         onChunk(tag(chunk));
-      }, search ? 5000 : 1500).then(function (all) {
-        cache[key] = tag(all);
-        return cache[key];
+      }, limit).then(function (all) {
+        all = tag(all || []);
+        if (all.length > 0) cache[key] = all;
+        return all;
       });
     }
 
     return Auth._fetchJSON(url).then(function (data) {
-      cache[key] = tag(data || []);
-      return cache[key];
+      var arr = tag(data || []);
+      if (arr.length > 0) cache[key] = arr;
+      return arr;
     });
   }
 
