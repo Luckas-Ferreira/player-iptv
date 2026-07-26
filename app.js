@@ -938,7 +938,7 @@ var App = (function () {
        então o botão lateral é a garantia. */
     input.addEventListener('keydown', function (e) {
       var code = e.keyCode || e.which;
-      if (code === 13 || code === 195 || code === 32) {
+      if (code === 13 || code === 195) {
         e.preventDefault();
         e.stopPropagation();
         _handleSearch();

@@ -46,6 +46,7 @@ var Navigation = (function () {
 
     if (isInput) {
       if (code === 8) return;                    // backspace — deixa o input tratar
+      if (code === 32) return;                   // espaço — deixa o input tratar (digitar espaço)
       /* Input de busca: seta DIREITA escapa pro botão "Pesquisar"
          (em TVs antigas onde Enter no input não funciona, esse é o
          caminho garantido pra acionar a busca). */
