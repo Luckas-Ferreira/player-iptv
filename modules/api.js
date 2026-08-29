@@ -9,8 +9,10 @@
  * Por que existe um DEFAULT:
  *  - Domínio streams4k.xyz força HTTPS via Cloudflare e Smart TVs
  *    antigas (Panasonic Viera, LG NetCast) NÃO negociam o TLS moderno.
- *  - O default `http://bmnew26.site` é o servidor real informado pelo
- *    próprio Xtream Codes (campo server_info.url da resposta do login).
+ *  - O default `http://191.96.78.246` é o IP de origem do provedor, que
+ *    atende em HTTP puro (sem Cloudflare/TLS). O domínio antigo
+ *    `bmnew26.site` saiu do ar (NXDOMAIN) e por isso o login passou
+ *    a responder "Servidor inacessível".
  *  - Se o usuário descobrir um IP de origem direto (sem Cloudflare),
  *    basta digitar no campo "Servidor" do login — ele substitui o default.
  *
@@ -20,7 +22,7 @@ var API = (function () {
   'use strict';
 
   /* Default usado quando o usuário não digitou nada no login. */
-  var IPTV_DEFAULT_BASE = 'http://bmnew26.site';
+  var IPTV_DEFAULT_BASE = 'http://191.96.78.246';
 
   var cache = {};
 

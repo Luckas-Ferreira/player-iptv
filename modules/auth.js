@@ -18,7 +18,7 @@ var Auth = (function () {
 
   /* Default usado se o usuário deixar o campo "Servidor" vazio.
      Mesmo valor do api.js — atualize nos DOIS se trocar de provedor. */
-  var IPTV_DEFAULT_BASE = 'http://bmnew26.site';
+  var IPTV_DEFAULT_BASE = 'http://191.96.78.246';
 
   var _credentials = null;
 
@@ -202,6 +202,8 @@ var Auth = (function () {
       if (saved.type === 'xtream') {
         var s = (saved.server || '').toLowerCase();
         var STALE_SERVERS = [
+          'http://bmnew26.site',
+          'https://bmnew26.site',
           'https://streams4k.xyz',
           'http://streams4k.xyz',
           'https://godisfaithful.shop',
