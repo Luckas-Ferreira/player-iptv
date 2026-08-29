@@ -410,13 +410,13 @@ var Renderer = (function () {
         }
         node = node.nextSibling;
       }
-      if (!cardH) cardH = 220;
+      if (!cardH) cardH = 280;
 
       /* Estima colunas pelo CSS grid */
       var cols  = 4;
       try {
         var gw = _grid.clientWidth || 800;
-        cols = Math.max(1, Math.floor(gw / 200));
+        cols = Math.max(1, Math.floor(gw / 226));
       } catch (e) {}
 
       var rows  = Math.ceil(toRemove / cols);
