@@ -8,29 +8,35 @@ Player IPTV web completo, leve e otimizado para rodar no navegador de Smart TVs 
 
 ### 1. Abrir Localmente (PC ou Mac)
 
-Basta abrir o arquivo `index.html` em qualquer navegador:
+Com Node.js instalado, inicie o servidor local do projeto:
 
 ```
-player-iptv/index.html
+node server.js
 ```
 
-Ou usar um servidor local simples (recomendado para evitar bloqueios de CORS):
+Abra `http://127.0.0.1:8080` e deixe o campo **Servidor** vazio para usar o
+provedor padrão. O servidor local encaminha somente a API desse provedor,
+sem enviar as credenciais para proxies públicos.
 
-```bash
-# Com Python 3
-cd player-iptv
-python3 -m http.server 8080
-# Acesse: http://localhost:8080
+O Live Server local na porta 5500 redireciona automaticamente para
+`http://127.0.0.1:8080`. Mantenha `node server.js` rodando.
 
-# Com Node.js (npx)
-npx serve .
-```
+Abrir `index.html`, usar Live Server, `python -m http.server` ou `npx serve`
+não resolve CORS quando o provedor bloqueia chamadas do navegador.
+Servidores personalizados e vídeos continuam com acesso direto.
 
 ### 2. Na Smart TV
 
-- Coloque os arquivos em um pen drive ou servidor HTTP local
-- Acesse via navegador da TV: `http://SEU_IP:8080`
-- Ou carregue o `index.html` diretamente do pen drive (se o navegador permitir)
+No PowerShell, para permitir acesso da TV na mesma rede:
+
+```powershell
+$env:HOST = '0.0.0.0'
+node server.js
+```
+
+- Mantenha o computador ligado e acesse `http://IP_DO_COMPUTADOR:8080` na TV.
+- Libere a porta 8080 somente na rede privada; não exponha o servidor à internet.
+- O acesso ao provedor continua em HTTP, necessário para TVs antigas; use uma rede confiável.
 
 ---
 
@@ -39,7 +45,6 @@ npx serve .
 | Feature | Status |
 |---------|--------|
 | Login Xtream Codes | ✅ |
-| Login M3U | ✅ |
 | TV ao Vivo | ✅ |
 | Filmes (VOD) | ✅ |
 | Séries com Episódios | ✅ |
@@ -69,14 +74,9 @@ npx serve .
 
 ### Xtream Codes
 Preencha:
-- **Servidor**: `http://meuservidor.com:8080`
+- **Servidor**: deixe vazio para usar o padrão, ou informe `http://meuservidor.com:8080`
 - **Usuário**: `seu_usuario`
 - **Senha**: `sua_senha`
-
-### Lista M3U
-Cole a URL completa da playlist:
-- `http://meuservidor.com/lista.m3u`
-- `http://meuservidor.com/get.php?username=X&password=Y&type=m3u`
 
 ---
 
@@ -87,6 +87,7 @@ player-iptv/
 ├── index.html          # HTML principal (todas as telas)
 ├── styles.css          # Design system + tema TV
 ├── app.js              # Orquestrador principal
+├── server.js           # Servidor local + acesso à API sem CORS
 ├── modules/
 │   ├── storage.js      # localStorage (favoritos, recentes, config)
 │   ├── auth.js         # Autenticação Xtream + M3U
@@ -103,6 +104,12 @@ player-iptv/
 ## ⚙️ Dependências
 
 **Nenhuma dependência local.** O projeto é 100% HTML/CSS/JavaScript puro.
+
+O servidor local usa apenas módulos nativos do Node.js. Para executar as verificações:
+
+```bash
+node --test
+```
 
 O único recurso externo (carregado sob demanda, apenas quando necessário):
 - `hls.js 1.4.12` (light build, ~100KB) – para streams HLS em navegadores sem suporte nativo

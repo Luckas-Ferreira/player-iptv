@@ -21,20 +21,11 @@
         <h1 class="logo-title">MPlay</h1>
       </div>
 
-      <div class="login-tabs" role="tablist">
-        <button id="tab-xtream" class="tab-btn active" type="button" role="tab" aria-selected="true" tabindex="0">
-          Xtream Codes
-        </button>
-        <button id="tab-m3u" class="tab-btn" type="button" role="tab" aria-selected="false" tabindex="0">
-          Lista M3U
-        </button>
-      </div>
-
       <!-- Formulário Xtream -->
-      <div id="form-xtream" class="login-form" role="tabpanel">
+      <div id="form-xtream" class="login-form">
         <div class="form-group">
-          <label for="xtream-server">Servidor</label>
-          <input id="xtream-server" type="url" value="http://bmnew26.site" autocomplete="off" spellcheck="false">
+          <label for="xtream-server">Servidor (opcional)</label>
+          <input id="xtream-server" type="url" placeholder="Deixe vazio para usar o servidor padrão" autocomplete="off" spellcheck="false">
         </div>
         <div class="form-group">
           <label for="xtream-user">Usuário</label>
@@ -43,14 +34,6 @@
         <div class="form-group">
           <label for="xtream-pass">Senha</label>
           <input id="xtream-pass" type="password" value="82982161060" autocomplete="off">
-        </div>
-      </div>
-
-      <!-- Formulário M3U -->
-      <div id="form-m3u" class="login-form hidden" role="tabpanel">
-        <div class="form-group">
-          <label for="m3u-url">URL da Playlist M3U</label>
-          <input id="m3u-url" type="url" placeholder="http://servidor.com/lista.m3u" autocomplete="off" spellcheck="false">
         </div>
       </div>
 

@@ -54,6 +54,12 @@ var App = (function () {
      INIT
   ══════════════════════════════════════ */
   function init() {
+    if (!window.IPTV_PROXY && window.location.port === '5500' &&
+        /^(127\.0\.0\.1|localhost)$/.test(window.location.hostname)) {
+      window.location.replace('http://127.0.0.1:8080/');
+      return;
+    }
+
     Player.init();
     Navigation.init();
     _bindLoginEvents();
@@ -79,11 +85,6 @@ var App = (function () {
      LOGIN
   ══════════════════════════════════════ */
   function _bindLoginEvents() {
-    var tabX = document.getElementById('tab-xtream');
-    var tabM = document.getElementById('tab-m3u');
-    if (tabX) tabX.addEventListener('click', function () { _switchLoginTab('xtream'); });
-    if (tabM) tabM.addEventListener('click', function () { _switchLoginTab('m3u'); });
-
     var btn = document.getElementById('btn-connect');
     if (btn) btn.addEventListener('click', _handleLogin);
 
@@ -95,55 +96,23 @@ var App = (function () {
     }
   }
 
-  function _switchLoginTab(type) {
-    var tabX = document.getElementById('tab-xtream');
-    var tabM = document.getElementById('tab-m3u');
-    var formX = document.getElementById('form-xtream');
-    var formM = document.getElementById('form-m3u');
-    if (type === 'xtream') {
-      tabX.classList.add('active');    tabX.setAttribute('aria-selected', 'true');
-      tabM.classList.remove('active'); tabM.setAttribute('aria-selected', 'false');
-      formX.classList.remove('hidden'); formM.classList.add('hidden');
-    } else {
-      tabM.classList.add('active');    tabM.setAttribute('aria-selected', 'true');
-      tabX.classList.remove('active'); tabX.setAttribute('aria-selected', 'false');
-      formM.classList.remove('hidden'); formX.classList.add('hidden');
-    }
-  }
-
   function _handleLogin() {
     if (_state.isLoggingIn) return;
-    var isX = document.getElementById('tab-xtream');
-    isX = isX && isX.classList.contains('active');
+    var srv = (document.getElementById('xtream-server') || {}).value || '';
+    var usr = (document.getElementById('xtream-user')   || {}).value || '';
+    var pwd = (document.getElementById('xtream-pass')   || {}).value || '';
+    if (!usr || !pwd) {
+      _setLoginStatus('Preencha usuário e senha', 'error');
+      return;
+    }
 
     _state.isLoggingIn = true;
     _setLoginStatus('Conectando…', 'loading');
 
-    var promise;
-    if (isX) {
-      var srv = (document.getElementById('xtream-server') || {}).value || '';
-      var usr = (document.getElementById('xtream-user')   || {}).value || '';
-      var pwd = (document.getElementById('xtream-pass')   || {}).value || '';
-      if (!srv || !usr || !pwd) {
-        _state.isLoggingIn = false;
-        _setLoginStatus('Preencha todos os campos', 'error');
-        return;
-      }
-      promise = Auth.loginXtream(srv, usr, pwd);
-    } else {
-      var url = (document.getElementById('m3u-url') || {}).value || '';
-      if (!url) {
-        _state.isLoggingIn = false;
-        _setLoginStatus('Insira a URL M3U', 'error');
-        return;
-      }
-      promise = Auth.loginM3U(url);
-    }
-
-    promise.then(function (r) {
+    Auth.loginXtream(srv, usr, pwd).then(function (r) {
       _state.isLoggingIn = false;
       if (r.success) {
-        _state.mode = isX ? 'xtream' : 'm3u';
+        _state.mode = 'xtream';
         _setLoginStatus('Conectado!', 'success');
         setTimeout(_enterHome, 400);
       } else {

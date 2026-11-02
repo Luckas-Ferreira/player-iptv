@@ -36,6 +36,10 @@ var Auth = (function () {
 
   /* ── XHR base ─────────────────────────────────────────── */
   function _xhrText(url, timeout) {
+    if (typeof window !== 'undefined' && window.IPTV_PROXY &&
+        url.indexOf(IPTV_DEFAULT_BASE + '/player_api.php?') === 0) {
+      url = '/iptv' + url.substring(IPTV_DEFAULT_BASE.length);
+    }
     return new Promise(function (resolve, reject) {
       var done = false;
       var xhr = new XMLHttpRequest();
@@ -79,14 +83,21 @@ var Auth = (function () {
 
     var first = t.charAt(0);
     if (first !== '[' && first !== '{') {
+      var b64 = t.replace(/[\r\n\s]/g, '');
       /* Tenta base64 */
       try {
-        var b64 = t.replace(/[\r\n\s]/g, '');
-        if (b64.charAt(0) === '=') b64 = b64.substring(1);
         if (/^[A-Za-z0-9+\/=]+$/.test(b64)) {
-          return JSON.parse(atob(b64));
+          return JSON.parse(atob(b64.charAt(0) === '=' ? b64.substring(1) : b64));
         }
       } catch (e) { /* segue para JSON normal */ }
+      /* Este provedor envia JSON invertido em duas camadas de base64. */
+      try {
+        var envelope = atob(b64.split('').reverse().join(''))
+          .match(/^([A-Za-z0-9+\/=]+)\|[0-9]+$/);
+        if (envelope) {
+          return JSON.parse(atob(envelope[1]).split('').reverse().join(''));
+        }
+      } catch (e) {}
     }
 
     return JSON.parse(t);
@@ -179,7 +190,7 @@ var Auth = (function () {
 
   function _isAuthOk(data) {
     if (!data || !data.user_info) return false;
-    return data.user_info.auth !== 0;
+    return data.user_info.auth === 1 || data.user_info.auth === '1';
   }
 
   /* Monta `http://host[:porta]` a partir do server_info, ou null se o
@@ -240,8 +251,9 @@ var Auth = (function () {
     return _fetchJSON(_playerApiUrl(base, username, password), 25000)
       .then(function (data) {
         if (!data) return { success: false, error: 'Resposta vazia' };
-        if (data.user_info && data.user_info.auth === 0) {
-          return { success: false, error: 'Usuário ou senha incorretos' };
+        if (!_isAuthOk(data)) {
+          return { success: false, error: data.user_info
+            ? 'Usuário ou senha incorretos' : 'Resposta inválida do servidor' };
         }
 
         /* Se o usuário digitou um servidor à mão, respeitamos a escolha
@@ -265,7 +277,8 @@ var Auth = (function () {
       .catch(function (err) {
         var msg = (err && err.message) || 'erro';
         if (msg === 'timeout') msg = 'Servidor não respondeu';
-        else if (msg === 'rede') msg = 'Servidor inacessível';
+        else if (msg === 'rede') msg = 'Servidor inacessível ou bloqueado pelo navegador. Abra o app com node server.js.';
+        else if (err && err.name === 'SyntaxError') msg = 'Resposta inválida do servidor';
         return { success: false, error: msg };
       });
   }

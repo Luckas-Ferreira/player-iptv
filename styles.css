@@ -106,7 +106,7 @@ button, .card, .home-tile, .cat-btn, .menu-item,
 .episode-card, .season-btn, .settings-item,
 .home-icon-btn, .topbar-search-btn, .content-back-btn,
 .header-search-btn, .player-btn-back, .detail-back-btn,
-.tab-btn, [tabindex="0"] {
+[tabindex="0"] {
   border: 4px solid transparent;
   -webkit-background-clip: padding-box;
           background-clip: padding-box;
@@ -131,7 +131,6 @@ input:focus,
 .header-search-btn:focus,
 .player-btn-back:focus,
 .detail-back-btn:focus,
-.tab-btn:focus,
 [tabindex="0"]:focus {
   outline: none;
   border-color: var(--accent-bright);
@@ -256,39 +255,6 @@ input:focus {
   font-weight: 800;
   letter-spacing: 0.5px;
 }
-
-.login-tabs {
-  margin-bottom: 20px;
-  background: var(--bg-base);
-  padding: 5px;
-  -webkit-border-radius: 6px;
-     -moz-border-radius: 6px;
-          border-radius: 6px;
-  -webkit-background-clip: padding-box;
-          background-clip: padding-box;
-  text-align: center;
-  font-size: 0;
-}
-.tab-btn {
-  display: inline-block;
-  width: 49%;
-  padding: 12px;
-  -webkit-border-radius: 6px;
-     -moz-border-radius: 6px;
-          border-radius: 6px;
-  -webkit-background-clip: padding-box;
-          background-clip: padding-box;
-  color: var(--text-2);
-  font-weight: 700;
-  font-size: 15px;
-}
-.tab-btn.active {
-  background: var(--bg-raised);
-  color: var(--text-1);
-}
-
-.login-form { display: block; }
-.login-form.hidden { display: none; }
 
 .form-group { margin-bottom: 16px; }
 .form-group label {
