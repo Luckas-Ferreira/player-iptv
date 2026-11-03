@@ -25,6 +25,8 @@ var API = (function () {
   var IPTV_DEFAULT_BASE = 'http://191.96.78.246';
 
   var cache = {};
+  var streamCacheKey = '';
+  var streamCache = null;
 
   /* ── URL Builder ─────────────────────────────────────── */
   function _base() {
@@ -83,14 +85,23 @@ var API = (function () {
     var url = _xtreamUrl(action, extra);
 
     /* Cache hit — não cacheia vazio pra permitir nova tentativa */
-    if (cache[key] && cache[key].length > 0) {
-      if (onChunk) onChunk(cache[key]);
-      return Promise.resolve(cache[key]);
+    if (key === streamCacheKey && streamCache && streamCache.length > 0) {
+      if (onChunk) onChunk(streamCache);
+      return Promise.resolve(streamCache);
     }
 
     function tag(arr) {
       for (var i = 0; i < arr.length; i++) arr[i]._type = typeTag;
       return arr;
+    }
+
+    function remember(data) {
+      var items = tag(data || []);
+      if (items.length > 0) {
+        streamCacheKey = key;
+        streamCache = items;
+      }
+      return items;
     }
 
     /* Busca precisa de teto alto: alguns provedores ignoram &search=
@@ -100,18 +111,10 @@ var API = (function () {
     if (onChunk) {
       return Auth._fetchJSONStream(url, function (chunk) {
         onChunk(tag(chunk));
-      }, limit).then(function (all) {
-        all = tag(all || []);
-        if (all.length > 0) cache[key] = all;
-        return all;
-      });
+      }, limit).then(remember);
     }
 
-    return Auth._fetchJSON(url).then(function (data) {
-      var arr = tag(data || []);
-      if (arr.length > 0) cache[key] = arr;
-      return arr;
-    });
+    return Auth._fetchJSON(url).then(remember);
   }
 
   function getLiveStreams(catId, onChunk, search) {
@@ -195,6 +198,8 @@ var API = (function () {
   /* ── Cache ───────────────────────────────────────────── */
   function clearCache() {
     cache = {};
+    streamCacheKey = '';
+    streamCache = null;
   }
 
   return {

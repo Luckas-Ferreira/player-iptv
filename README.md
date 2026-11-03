@@ -68,6 +68,18 @@ node server.js
 | Voltar / Backspace | Retornar à tela anterior |
 | Play/Pause | Pausar/reproduzir (na tela do player) |
 
+O foco tem contraste alto e volta ao mesmo item ao sair dos detalhes.
+Use **Anterior** e **Próxima** no topo do catálogo para trocar de página.
+A categoria selecionada permanece marcada enquanto você navega pelos títulos.
+
+### Leveza para TVs com pouca memória
+
+- Até 12 cards por página, com carregamento de capas conforme entram na tela.
+- No máximo duas imagens sendo baixadas ao mesmo tempo; a troca de página cancela as pendentes.
+- Somente a última lista de canais, filmes ou séries fica no cache da API.
+- Sem animações, sombras de foco, zoom ou imagens decorativas em tela cheia.
+- Layout adaptado a HD, Full HD e celular, sem fontes externas ou novas dependências.
+
 ---
 
 ## 🔗 Tipos de Conexão
@@ -127,9 +139,9 @@ O único recurso externo (carregado sob demanda, apenas quando necessário):
 
 ## 🎨 Design
 
-- Fundo escuro elegante `#0d0d1a`
-- Destaque roxo/azul `#7c3aed` / `#2563eb`
-- Cards com canto arredondado e sombra
-- Focus ring super visível para navegação com setas
-- Tipografia grande e legível para TV
-- Animações mínimas (apenas transform/opacity)
+- Fundo escuro, destaque vermelho e foco claro de alto contraste.
+- Início com TV ao Vivo, Filmes e Séries em botões grandes.
+- Favoritos e Continuar Assistindo em uma segunda linha.
+- Categorias e paginação fixas durante a rolagem do catálogo.
+- Tipografia grande e instruções de navegação sempre visíveis fora do player.
+- Bordas e cores sólidas para indicar o foco, sem efeitos animados.

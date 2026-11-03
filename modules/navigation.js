@@ -27,6 +27,7 @@ var Navigation = (function () {
 
   var _history = [];
   var _currentScreen = 'login';
+  var _lastFocus = {};
   var _focusableSelector = 'button:not([disabled]), [tabindex="0"], input, select';
 
   /* ══════════════════════════════════════
@@ -34,13 +35,23 @@ var Navigation = (function () {
   ══════════════════════════════════════ */
   function init() {
     document.addEventListener('keydown', _handleKey, false);
+    document.addEventListener('focus', function (event) {
+      var screen = document.getElementById('screen-' + _currentScreen);
+      if (screen && screen.contains(event.target)) _lastFocus[_currentScreen] = event.target;
+      var card = event.target.closest ? event.target.closest('.card') : null;
+      var title = document.getElementById('focused-item-name');
+      if (card && title) title.textContent = card.getAttribute('aria-label') || '';
+    }, true);
   }
 
   /* ══════════════════════════════════════
      Handler principal de teclas
   ══════════════════════════════════════ */
   function _handleKey(e) {
+    if (e.defaultPrevented) return;
     var code = e.keyCode || e.which;
+    var modal = document.getElementById('modal-resume');
+    var modalOpen = modal && !modal.classList.contains('hidden');
     var focused = document.activeElement;
     var isInput = focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA');
 
@@ -70,11 +81,16 @@ var Navigation = (function () {
 
     if (_matchKey(code, KEYS.BACK)) {
       e.preventDefault();
+      if (modalOpen) {
+        modal.classList.add('hidden');
+        focusFirst(_currentScreen);
+        return;
+      }
       App.goBack();
       return;
     }
 
-    if (_currentScreen === 'player') {
+    if (_currentScreen === 'player' && !modalOpen) {
       if (_matchKey(code, KEYS.PLAY_PAUSE) || _matchKey(code, KEYS.PLAY) || _matchKey(code, KEYS.PAUSE)) {
         e.preventDefault();
         Player.togglePlayPause();
@@ -131,6 +147,13 @@ var Navigation = (function () {
     var inContentHdr  = focused.closest('.content-header');
     var inGrid        = focused.closest('.content-grid');
     var inEpisodes    = focused.closest('.episodes-panel');
+    var inPager       = focused.closest('.catalogue-toolbar');
+
+    if (inPager) {
+      if (direction === 'up') return ['.topbar'];
+      if (direction === 'down') return ['.content-grid'];
+      return ['.catalogue-toolbar'];
+    }
 
     /* ── Topbar (Voltar + título + Buscar) ── */
     if (inTopbar) {
@@ -144,6 +167,11 @@ var Navigation = (function () {
 
     /* ── Sidebar de categorias ── */
     if (inCategory) {
+      if (window.innerWidth <= 650) {
+        if (direction === 'down') return ['.content-grid', '.catalogue-toolbar'];
+        if (direction === 'up') return ['.topbar'];
+        return ['.category-sidebar'];
+      }
       if (direction === 'up' || direction === 'down') return ['.category-sidebar', '.topbar'];
       if (direction === 'right') return ['.content-header', '.content-grid', '.content-empty'];
       if (direction === 'left') return ['.category-sidebar'];
@@ -161,7 +189,7 @@ var Navigation = (function () {
     if (inGrid) {
       if (direction === 'left')  return ['.content-grid', '.category-sidebar'];
       if (direction === 'right') return ['.content-grid'];
-      if (direction === 'up')    return ['.content-grid', '.content-header', '.topbar'];
+      if (direction === 'up')    return ['.content-grid', '.catalogue-toolbar', '.content-header', '.topbar'];
       /* sem constraint para baixo — scroll livre */
     }
 
@@ -188,7 +216,7 @@ var Navigation = (function () {
 
     if (!focusables.length) return;
 
-    if (!focused || !document.contains(focused)) {
+    if (!focused || focusables.indexOf(focused) === -1) {
       focusables[0].focus();
       return;
     }
@@ -285,13 +313,15 @@ var Navigation = (function () {
       }
     }
 
-    var mainScreen = document.getElementById('screen-' + _currentScreen) || document.body;
+    var modal = document.getElementById('modal-resume');
+    var mainScreen = modal && !modal.classList.contains('hidden') ? modal
+      : document.getElementById('screen-' + _currentScreen) || document.body;
     _collect(mainScreen);
     return visible;
   }
 
   function _isVisible(el) {
-    if (!el) return false;
+    if (!el || el.disabled) return false;
     var rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     var style = window.getComputedStyle(el);
@@ -304,8 +334,6 @@ var Navigation = (function () {
   ══════════════════════════════════════ */
   function _scrollIntoView(el) {
     try {
-      var header = document.querySelector('.topbar');
-      var headerH = header ? header.offsetHeight : 0;
       var rect = el.getBoundingClientRect();
       var scrollParent = _getScrollParent(el);
 
@@ -313,21 +341,23 @@ var Navigation = (function () {
         var parentRect = scrollParent.getBoundingClientRect();
         var elTop = rect.top - parentRect.top + scrollParent.scrollTop;
         var elBottom = elTop + rect.height;
-        var viewTop = scrollParent.scrollTop + headerH + 8;
+        var viewTop = scrollParent.scrollTop + 8;
         var viewBot = scrollParent.scrollTop + scrollParent.clientHeight - 8;
 
         if (elTop < viewTop) {
-          scrollParent.scrollTop = elTop - headerH - 8;
+          scrollParent.scrollTop = elTop - 8;
         } else if (elBottom > viewBot) {
           scrollParent.scrollTop = elBottom - scrollParent.clientHeight + 8;
         }
+        if (rect.left < parentRect.left + 8) scrollParent.scrollLeft -= parentRect.left + 8 - rect.left;
+        else if (rect.right > parentRect.right - 8) scrollParent.scrollLeft += rect.right - parentRect.right + 8;
         return;
       }
     } catch (err) { }
 
     /* fallback */
     try {
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
     } catch (e) {
       try { el.scrollIntoView(false); } catch (e2) { }
     }
@@ -337,8 +367,8 @@ var Navigation = (function () {
     var node = el.parentNode;
     while (node && node !== document.body) {
       var style = window.getComputedStyle(node);
-      var overflow = style.overflow + style.overflowY;
-      if (/auto|scroll/.test(overflow) && node.scrollHeight > node.clientHeight) {
+      var overflow = style.overflow + style.overflowY + style.overflowX;
+      if (/auto|scroll/.test(overflow) && (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth)) {
         return node;
       }
       node = node.parentNode;
@@ -374,6 +404,7 @@ var Navigation = (function () {
 
   function clearHistory() {
     _history = [];
+    _lastFocus = {};
   }
 
   function focusFirst(screenId) {
@@ -384,15 +415,24 @@ var Navigation = (function () {
       /* Em screens com header (topbar/home-header), pula o primeiro grupo
          de botões e foca no conteúdo principal — fica mais natural. */
       var preferred = null;
-      if (screenId === 'home') {
+      var remembered = _lastFocus[screenId];
+      if (remembered && screen.contains(remembered) && _isVisible(remembered)) {
+        remembered.focus();
+        _scrollIntoView(remembered);
+        return;
+      }
+      if (screenId === 'login') {
+        var user = screen.querySelector('#xtream-user');
+        var password = screen.querySelector('#xtream-pass');
+        if (user && user.value && password && password.value) preferred = screen.querySelector('#btn-connect');
+      } else if (screenId === 'home') {
         preferred = screen.querySelector('.home-tile');
       } else if (screenId === 'main') {
         preferred = screen.querySelector('.cat-btn') ||
                     screen.querySelector('.card') ||
                     screen.querySelector('#topbar-search-btn.visible');
       } else if (screenId === 'settings') {
-        preferred = screen.querySelector('.settings-item') ||
-                    screen.querySelector('.btn-primary');
+        preferred = screen.querySelector('.settings-item button');
       }
       if (preferred && _isVisible(preferred)) {
         try { preferred.focus(); return; } catch (e) {}

@@ -1,10 +1,9 @@
 /**
- * renderer.js — Cards, Pager (rolagem progressiva) e lazy-load de imagens
+ * renderer.js — Cards, paginação e lazy-load de imagens
  *
  * OTIMIZAÇÕES PARA TV ANTIGA:
- *  • Pager: máx 80 cards no DOM ao mesmo tempo (com spacer compensando os removidos)
- *  • CHUNK 8: 8 cards por render — TV antiga não trava processando 30 nós de uma vez
- *  • IMGMAX 4: até 4 imagens em paralelo (o navegador já limita a ~6 conexões/host)
+ *  • Pager: 12 cards por página, sem descartar títulos ao voltar
+ *  • IMGMAX 2: até 2 imagens em paralelo
  *  • IntersectionObserver lazy-load + retry via wsrv.nl quando a TV não negocia TLS moderno
  *  • Em falha definitiva, mostra placeholder rico em vez de sumir com o card
  */
@@ -12,7 +11,7 @@ var Renderer = (function () {
   'use strict';
 
   /* ── CONFIG ─────────────────────────────────────────────── */
-  var IMGMAX          = 4;
+  var IMGMAX          = 2;
   var IMG_DELAY       = 100;    /* ms entre tentativas de processar fila */
   var IMG_TIMEOUT     = 10000;  /* 10s — evita 1 imagem travar toda a fila */
   var IMG_RETRY_DELAY = 800;    /* ms antes do retry via proxy wsrv.nl */
@@ -24,6 +23,8 @@ var Renderer = (function () {
   var globalObserver = null;
   var imgTimeouts   = {};
   var imgIdCounter  = 0;
+  var imgRequests   = {};
+  var imgGeneration = 0;
 
   function _getObserver() {
     if (globalObserver) return globalObserver;
@@ -59,7 +60,7 @@ var Renderer = (function () {
   function _processQueue() {
     while (imgLoading < IMGMAX && imgQueue.length > 0) {
       var entry = imgQueue.shift();
-      if (!entry.el || !entry.el.parentNode) continue;
+      if (!entry.el || !document.documentElement.contains(entry.el)) continue;
       if (entry.el.getAttribute('data-loaded') === '1') continue;
       imgLoading++;
       _loadOne(entry.el, entry.src, entry.retry || 0);
@@ -77,6 +78,7 @@ var Renderer = (function () {
 
     var _imgId = ++imgIdCounter;
     var _done = false;
+    var generation = imgGeneration;
     var actualSrc = String(src).trim();
 
     if (retryCount >= 1) {
@@ -84,21 +86,23 @@ var Renderer = (function () {
     }
 
     var _tmp = new Image();
+    imgRequests[_imgId] = _tmp;
 
     function finish(success) {
-      if (_done) return;
+      if (_done || generation !== imgGeneration) return;
       _done = true;
       if (imgTimeouts[_imgId]) { clearTimeout(imgTimeouts[_imgId]); delete imgTimeouts[_imgId]; }
       _tmp.onload = _tmp.onerror = null;
+      delete imgRequests[_imgId];
       imgLoading = Math.max(0, imgLoading - 1);
 
-      if (success && imgEl && imgEl.parentNode) {
+      if (success && imgEl && document.documentElement.contains(imgEl)) {
         imgEl.src = actualSrc;
         imgEl.setAttribute('data-loaded', '1');
         imgEl.style.display = '';
-      } else if (retryCount < 1 && imgEl && imgEl.parentNode) {
+      } else if (retryCount < 1 && imgEl && document.documentElement.contains(imgEl)) {
         setTimeout(function () {
-          if (!imgEl.parentNode) return;
+          if (generation !== imgGeneration || !document.documentElement.contains(imgEl)) return;
           imgQueue.push({ el: imgEl, src: src, retry: retryCount + 1 });
           _scheduleProcess();
         }, IMG_RETRY_DELAY);
@@ -174,7 +178,7 @@ var Renderer = (function () {
 
     /* Thumb */
     if (icon) {
-      var img = _el('img', { className: 'card-thumb', alt: name });
+      var img = _el('img', { className: 'card-thumb', alt: name, decoding: 'async' });
       lazyLoadImg(img, icon);
       card.appendChild(img);
     } else {
@@ -231,6 +235,7 @@ var Renderer = (function () {
     });
 
     card.addEventListener('keydown', function (e) {
+      if (e.target !== card) return;
       if (e.keyCode === 13 || e.keyCode === 32 || e.keyCode === 195) {
         e.preventDefault();
         if (options.onPlay) options.onPlay(item);
@@ -262,212 +267,86 @@ var Renderer = (function () {
     container.appendChild(frag);
   }
 
-  /* ── PAGER (rolagem progressiva + trim de DOM) ─────────── */
+  /* ── PAGER ────────────────────────────────────────────── */
   var Pager = (function () {
-    var CHUNK   = 8;
-    var DOM_MAX = 80;
-    var MARGIN  = 400;
-
-    var _grid     = null;
-    var _items    = [];
-    var _opts     = {};
-    var _rStart   = 0;
-    var _rEnd     = 0;
-    var _busy     = false;
-    var _tok      = 0;
-    var _spacer   = null;
-    var _sentinel = null;
-    var _scrollEl = null;
-    var _io       = null;
-    var _scrollFn = null;
-    var _spacerH  = 0;
+    var PAGE_SIZE = 12;
+    var _grid = null;
+    var _items = [];
+    var _opts = {};
+    var _page = 0;
+    var _shown = 0;
 
     function init(grid, opts) {
       destroy();
       if (!grid) return;
-      _grid    = grid;
-      _opts    = opts || {};
-      _items   = [];
-      _rStart  = 0;
-      _rEnd    = 0;
-      _spacerH = 0;
-      _tok++;
+      _grid = grid;
+      _opts = opts || {};
+      _grid.innerHTML = '';
+      var previous = document.getElementById('catalogue-prev');
+      var next = document.getElementById('catalogue-next');
+      if (previous) previous.onclick = function () { _changePage(-1); };
+      if (next) next.onclick = function () { _changePage(1); };
+      _updateControls();
+    }
 
-      while (_grid.firstChild) _grid.removeChild(_grid.firstChild);
+    function append(items) {
+      if (!_grid || !items || !items.length) return;
+      for (var index = 0; index < items.length; index++) _items.push(items[index]);
+      if (_shown < Math.min(PAGE_SIZE, _items.length - _page * PAGE_SIZE)) _render(false);
+      else _updateControls();
+    }
 
-      _spacer = document.createElement('div');
-      _spacer.className = 'pager-spacer';
-      _spacer.style.height = '0';
-      _grid.appendChild(_spacer);
+    function _changePage(direction) {
+      var page = _page + direction;
+      if (!_grid || page < 0 || page * PAGE_SIZE >= _items.length) return;
+      _page = page;
+      _render(true);
+    }
 
-      _sentinel = document.createElement('div');
-      _sentinel.className = 'pager-sentinel';
-      _grid.appendChild(_sentinel);
-
-      _scrollEl = _findScrollParent(_grid);
-
-      if (typeof IntersectionObserver !== 'undefined') {
-        try {
-          _io = new IntersectionObserver(function (entries) {
-            if (entries[0] && entries[0].isIntersecting) _scheduleChunk();
-          }, { root: _scrollEl || null, rootMargin: MARGIN + 'px 0px', threshold: 0 });
-          _io.observe(_sentinel);
-        } catch (e) {
-          _io = null;
-          _setupScrollFallback();
-        }
-      } else {
-        _setupScrollFallback();
+    function _render(focus) {
+      if (focus) {
+        _resetImages();
+        _grid.innerHTML = '';
+        _shown = 0;
+      }
+      var fragment = document.createDocumentFragment();
+      var start = _page * PAGE_SIZE;
+      var end = Math.min(start + PAGE_SIZE, _items.length);
+      for (var index = start + _shown; index < end; index++) {
+        fragment.appendChild(createCard(_items[index], _opts));
+      }
+      _grid.appendChild(fragment);
+      _shown = end - start;
+      _updateControls();
+      if (focus) {
+        var body = document.getElementById('content-body');
+        if (body) body.scrollTop = 0;
+        var first = _grid.querySelector('.card');
+        if (first) first.focus();
       }
     }
 
-    function append(newItems) {
-      if (!_grid || !newItems || !newItems.length) return;
-      for (var i = 0; i < newItems.length; i++) _items.push(newItems[i]);
-      if (_rEnd < CHUNK * 2 && _items.length > _rEnd) _scheduleChunk();
+    function _updateControls() {
+      var previous = document.getElementById('catalogue-prev');
+      var next = document.getElementById('catalogue-next');
+      var label = document.getElementById('catalogue-page');
+      if (previous) previous.disabled = _page === 0;
+      if (next) next.disabled = (_page + 1) * PAGE_SIZE >= _items.length;
+      if (label) label.textContent = 'Página ' + (_page + 1) + ' de ' + Math.max(1, Math.ceil(_items.length / PAGE_SIZE));
     }
 
     function destroy() {
-      _tok++;
-      if (_io) { try { _io.disconnect(); } catch (e) {} _io = null; }
-      if (_scrollFn && _scrollEl) {
-        try { _scrollEl.removeEventListener('scroll', _scrollFn, false); } catch (e) {}
-      }
-      _scrollFn = null;
-      _grid     = null;
-      _items    = [];
-      _sentinel = null;
-      _spacer   = null;
-      _busy     = false;
-      _scrollEl = null;
-    }
-
-    function _setupScrollFallback() {
-      var target = _scrollEl || window;
-      if (!target) return;
-      _scrollFn = _throttle(function () {
-        var st, ch, sh;
-        if (_scrollEl) {
-          st = _scrollEl.scrollTop;
-          ch = _scrollEl.clientHeight;
-          sh = _scrollEl.scrollHeight;
-        } else {
-          var d = document.documentElement;
-          st = d.scrollTop || document.body.scrollTop || 0;
-          ch = window.innerHeight || d.clientHeight || 0;
-          sh = d.scrollHeight || document.body.scrollHeight || 0;
-        }
-        if ((sh - st - ch) < MARGIN) _scheduleChunk();
-      }, 250);
-      target.addEventListener('scroll', _scrollFn, false);
-    }
-
-    function _scheduleChunk() {
-      if (_busy || !_grid || _rEnd >= _items.length) return;
-      _busy = true;
-      var tok = _tok;
-      setTimeout(function () {
-        if (tok !== _tok || !_grid) { _busy = false; return; }
-        _renderNext();
-        _busy = false;
-        if (!_io && _scrollEl && _rEnd < _items.length) {
-          var dist = _scrollEl.scrollHeight - _scrollEl.scrollTop - _scrollEl.clientHeight;
-          if (dist < MARGIN) _scheduleChunk();
-        }
-      }, 0);
-    }
-
-    function _renderNext() {
-      if (!_grid || _rEnd >= _items.length) return;
-      var end = Math.min(_rEnd + CHUNK, _items.length);
-
-      if (_sentinel && _sentinel.parentNode === _grid) _grid.removeChild(_sentinel);
-
-      var frag = document.createDocumentFragment();
-      for (var i = _rEnd; i < end; i++) {
-        frag.appendChild(createCard(_items[i], _opts));
-      }
-      _grid.appendChild(frag);
-      _rEnd = end;
-
-      _trimDOM();
-
-      if (_sentinel) _grid.appendChild(_sentinel);
-    }
-
-    function _trimDOM() {
-      var inDom = _rEnd - _rStart;
-      if (inDom <= DOM_MAX) return;
-      var toRemove = inDom - DOM_MAX;
-
-      /* Estima altura média do card pra ajustar o spacer */
-      var cardH = 0;
-      var node = _spacer ? _spacer.nextSibling : null;
-      while (node && node !== _sentinel) {
-        if (node.nodeType === 1 && node.className && node.className.indexOf('card') === 0) {
-          cardH = node.offsetHeight || cardH;
-          break;
-        }
-        node = node.nextSibling;
-      }
-      if (!cardH) cardH = 280;
-
-      /* Estima colunas pelo CSS grid */
-      var cols  = 4;
-      try {
-        var gw = _grid.clientWidth || 800;
-        cols = Math.max(1, Math.floor(gw / 226));
-      } catch (e) {}
-
-      var rows  = Math.ceil(toRemove / cols);
-      var addH  = rows * (cardH + 14);
-
-      /* Remove os primeiros `toRemove` cards */
-      var cur = _spacer ? _spacer.nextSibling : null;
-      var removed = 0;
-      var buf = [];
-      while (cur && removed < toRemove) {
-        var nxt = cur.nextSibling;
-        if (cur !== _sentinel && cur !== _spacer) {
-          buf.push(cur);
-          removed++;
-        }
-        cur = nxt;
-      }
-      for (var i = 0; i < buf.length; i++) _grid.removeChild(buf[i]);
-      _rStart += removed;
-      _spacerH += addH;
-      if (_spacer) _spacer.style.height = _spacerH + 'px';
-    }
-
-    function _findScrollParent(el) {
-      var node = el ? el.parentNode : null;
-      while (node && node !== document.body && node !== document.documentElement) {
-        try {
-          var s = window.getComputedStyle(node);
-          var ov = s.overflowY || s.overflow || '';
-          if (ov === 'auto' || ov === 'scroll') return node;
-        } catch (e) {}
-        node = node.parentNode;
-      }
-      return null;
-    }
-
-    function _throttle(fn, ms) {
-      var last = 0, timer = null;
-      return function () {
-        var now = Date.now();
-        var rem = ms - (now - last);
-        if (rem <= 0) {
-          last = now;
-          try { fn(); } catch (e) {}
-        } else if (!timer) {
-          timer = setTimeout(function () {
-            last = Date.now(); timer = null;
-            try { fn(); } catch (e) {}
-          }, rem);
-        }
-      };
+      _resetImages();
+      _grid = null;
+      _items = [];
+      _opts = {};
+      _page = 0;
+      _shown = 0;
+      var previous = document.getElementById('catalogue-prev');
+      var next = document.getElementById('catalogue-next');
+      if (previous) previous.onclick = null;
+      if (next) next.onclick = null;
+      _updateControls();
     }
 
     return { init: init, append: append, destroy: destroy };
@@ -502,14 +381,17 @@ var Renderer = (function () {
 
   function destroyVirtualScroll() {
     Pager.destroy();
-    /* Para de observar imagens pendentes pra não disparar carregamento de
-       categoria antiga ao rolar a nova. */
-    if (globalObserver) {
-      var imgs = document.querySelectorAll('img[data-src]:not([data-loaded="1"])');
-      for (var i = 0; i < imgs.length; i++) {
-        try { globalObserver.unobserve(imgs[i]); } catch (e) {}
-      }
+  }
+
+  function _resetImages() {
+    imgGeneration++;
+    if (globalObserver) globalObserver.disconnect();
+    for (var requestId in imgRequests) {
+      if (!imgRequests.hasOwnProperty(requestId)) continue;
+      imgRequests[requestId].onload = imgRequests[requestId].onerror = null;
+      try { imgRequests[requestId].src = ''; } catch (e) {}
     }
+    imgRequests = {};
     for (var tid in imgTimeouts) {
       if (imgTimeouts.hasOwnProperty(tid)) clearTimeout(imgTimeouts[tid]);
     }

@@ -207,6 +207,13 @@ var App = (function () {
     var sidebar = document.querySelector('#screen-main .category-sidebar');
     var hasCats = (tabName !== 'favorites' && tabName !== 'watchlist');
     if (sidebar) sidebar.style.display = hasCats ? '' : 'none';
+    var mainScreen = document.getElementById('screen-main');
+    if (mainScreen) {
+      if (hasCats) mainScreen.classList.remove('without-categories');
+      else mainScreen.classList.add('without-categories');
+    }
+    var selection = document.getElementById('focused-item-name');
+    if (selection) selection.textContent = 'Escolha um título';
 
     if (tabName === 'favorites')  { Renderer.setLoading(false); _renderFavorites(); Navigation.focusFirst('main'); return; }
     if (tabName === 'watchlist')  { Renderer.setLoading(false); _renderWatchlist(); Navigation.focusFirst('main'); return; }
@@ -371,13 +378,18 @@ var App = (function () {
         btn.textContent = cat.category_name;
         btn.dataset.catId = cat.category_id;
         btn.tabIndex = 0;
+        btn.setAttribute('aria-pressed', idx === 0 ? 'true' : 'false');
 
         btn.addEventListener('click', function () {
           if (_state.activeCategory === cat.category_id) return;
           _state.activeCategory = cat.category_id;
           var all = container.querySelectorAll('.cat-btn');
-          for (var j = 0; j < all.length; j++) all[j].classList.remove('active');
+          for (var j = 0; j < all.length; j++) {
+            all[j].classList.remove('active');
+            all[j].setAttribute('aria-pressed', 'false');
+          }
           btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
 
           var input = document.getElementById('header-search-input');
           if (input) input.value = '';
@@ -581,8 +593,6 @@ var App = (function () {
           var better = data.movie_image || data.cover_big;
           var coverEl = document.getElementById('detail-cover');
           if (coverEl) { coverEl.src = better; coverEl.style.display = ''; }
-          var bdEl = document.getElementById('detail-backdrop');
-          if (bdEl) bdEl.style.backgroundImage = 'url(' + better + ')';
         }
       }).catch(function () {
         if (plotEl && plotEl.textContent === 'Carregando detalhes…') plotEl.textContent = '';
@@ -778,9 +788,6 @@ var App = (function () {
         c.onerror = function () { this.style.display = 'none'; };
       } else c.style.display = 'none';
     }
-
-    var bd = document.getElementById('detail-backdrop');
-    if (bd && icon) bd.style.backgroundImage = 'url(' + icon + ')';
 
     var p = document.getElementById('detail-plot');
     if (p) {
